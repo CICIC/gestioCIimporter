@@ -9,7 +9,7 @@ from peewee import DoesNotExist
 from models import WelcomeIcMembership, WelcomeIcRecord
 from models import WelcomeIcPersonMembership
 from models import GeneralHuman, GeneralPerson, GeneralRelHumanAddresses
-from models import GeneralAddress
+from models import GeneralAddress, GeneralProject
 
 # we have the old database and it has to be converted to the new structure.
 # first will be imported de UsersCES file
@@ -71,7 +71,7 @@ QuotaAltaCol = 36
 #row[5] = Address1
 #row[6] = Address2
 #row[7] = Address3 (Barri/Zona)
-#row[8] = Postcode
+#row[8] = Postcode (only 5digits)
 #row[9] =  SubArea ( != comarca)
 #row[10] = PhoneHome
  #(if beggins with 6 and Mobile empty move to mobile)
@@ -88,96 +88,129 @@ QuotaAltaCol = 36
 #row[18] = Locked (if locked avoid to import)
 
 
+def file1_CreateHuman(row):
+    "Process the CSV data related to Human class and saves to the database"
+
+    #being doesn't exists, then needs to be created
+    #saving telephone numbers enhanced
+    #row[10] = PhoneHome
+    #row[11] = PhoneWork
+    #row[12] = PhoneFax
+    #row[13] = PhoneMobile
+    phone = row[10]
+    if row[10] == '':
+        if row[11] != '':
+            phone = row[11]
+            logger.debug("phoneHome empty but phoneWork filled")
+        elif row[12] != '':
+            phone = row[12]
+            logger.debug("phoneHome, phoneWork empty, FAX filled")
+    #enhanced getting website url
+    #row[15] = IM
+     #(if beggins with 'http' or 'www' copy to website if empty)
+    #row[16] = WebSite
+    if row[16] == '':
+        if row[15].startswith('www') or row[15].startswith('http'):
+            row[16] = row[15]
+    #save to the db
+    return GeneralHuman.create(
+                                name=row[2], email=row[14],
+                                telephone_cell=row[13], telephone_land=phone,
+                                website=row[16])
+
+
+def file1_CreateAddress(row, human):
+    "Process the CSV data related to Address class and saves to the database"
+
+    cp = row[8]
+    if re.search(r"[0-9]{4}", cp):
+        cp = '0' + cp
+    if not re.search(r"[0-9]{5}", cp):
+        cp = ''
+    #create address
+    address = GeneralAddress.create(name='CES address', p_address=row[5],
+        ic_larder=0, postalcode=cp, town=row[6])
+    #create relation between person and address
+    GeneralRelHumanAddresses.create(
+        address=address, human=human.id, main_address=0)
+
+
+def file1_CreateMembership(row, human, record):
+    "Process the CSV data related to Membership class and saves to the database"
+
+    logger.debug("Inserting membership: %s", row[0])
+    logger.debug("ic_project= %d", cicProject)
+    logger.debug("ic_record= %d", record.id)
+    logger.debug("join_date= %s", row[17])
+    membership = WelcomeIcMembership.create(human=human.id,
+         ic_project=cicProject, ic_record=record.id,
+         join_date=row[17], ic_cesnum=row[0])
+    logger.debug("ic_record.id: %d", membership.ic_record.id)
+    logger.debug("human.id: %d", human.id)
+    #create the relation between person and membership
+    WelcomeIcPersonMembership.create(ic_membership=membership.ic_record.id,
+                                     person=human.id)
+
+
 def ProcessRow(row):
     "Gets a row from the CSV and stores it's data to the database"
-    existeix = True
+
     try:
+        #check if exists a member with the CESnumber
         membership = WelcomeIcMembership.get(
             WelcomeIcMembership.ic_cesnum == row[0])
-    except DoesNotExist as e:
-        existeix = False
-    if existeix:
+        #check the consistency of the database and try to fix it
         try:
             personmembership = WelcomeIcPersonMembership.get(
                 WelcomeIcPersonMembership.ic_membership == membership)
+        except DoesNotExist as e:
+            logger.warning("personmembership inconsistent: %s", row[0])
+            logger.warning("e: %s", e)
+            #TODO create whatever-membership to db table
+        try:
             GeneralPerson.get(
                 GeneralPerson.human == personmembership.person.human)
-            human = GeneralHuman.get(
-                GeneralHuman.id == personmembership.person.human)
         except DoesNotExist as e:
-            logger.warning("BBDD inconsistent per: %s", row[0])
+            logger.warning("GeneralPerson inconsistent: %s", row[0])
             logger.warning("e: %s", e)
-    else:
-        #being doesn't exists, then needs to be created
-        #enhanced getting telephone numbers
-        #row[10] = PhoneHome
-        #row[11] = PhoneWork
-        #row[12] = PhoneFax
-        #row[13] = PhoneMobile
-        phone = row[10]
-        if row[10] == '':
-            if row[11] != '':
-                phone = row[11]
-                logger.debug("phoneHome empty but phoneWork filled")
-            elif row[12] != '':
-                phone = row[12]
-                logger.debug("phoneHome, phoneWork empty, FAX filled")
-        #enhanced getting website url
-        #row[15] = IM
-         #(if beggins with 'http' or 'www' copy to website if empty)
-        #row[16] = WebSite
-        if row[16] == '':
-            if row[15].startswith('www') or row[15].startswith('http'):
-                row[16] = row[15]
-        #create instances of the being to be stored on the db
-        #create human
-        human = GeneralHuman.create(
-            name=row[2], email=row[14],
-            telephone_cell=row[13], telephone_land=phone,
-            website=row[16])
-        #create person
-        GeneralPerson.create(human=human.id, surnames=row[3])
-        #get only well formed postal codes
-        cp = row[8]
-        if re.search(r"[0-9]{4}", cp):
-            cp = "0" + cp
-        if not re.search(r"[0-9]{5}", cp):
-            cp = ""
-        #create address
-        address = GeneralAddress.create(name='CES', p_address=row[5],
-            ic_larder=0, postalcode=cp, town=row[6])
-        #create relation between person and address
-        GeneralRelHumanAddresses.create(
-            address=address, human=human.id, main_address=0)
+            #TODO add Person or project to db table
+        try:
+            GeneralHuman.get(GeneralHuman.id == personmembership.person.human)
+        except DoesNotExist as e:
+            logger.warning("GeneralHuman inconsistent: %s", row[0])
+            logger.warning("e: %s", e)
+            #TODO add Human to db table
+    except DoesNotExist as e:
+        human = file1_CreateHuman(row)
+        file1_CreateAddress(row, human)
         #TODO: create join_fee on the second file
          #here we don't have enogh info
         #create the membership
         #find what kind of membership
         #row[1] = User Type (adm,com,fam,ind,org,pub,vir)
-        record_type = SociCoopInd
-        record_name = "Alta Soci Individual:" + row[0]
-        if row[1] != 'ind':
-            if row[1] == 'com' or row[1] == 'org':
-                record_type = SociCoopCol
-                record_name = "Alta Soci Col·lectiu:" + row[0]
-            elif row[1] == 'pub':
-                record_type = ProjPublic
-                record_name = "Alta Projecte Públic:" + row[0]
+        if row[1] == 'ind':
+            #create person
+            GeneralPerson.create(human=human.id, surnames=row[3])
+            #define membership type
+            record_type = SociCoopInd
+            record_name = "Alta Soci Individual:" + row[0]
+        elif row[1] == 'com' or row[1] == 'org':
+            #create project
+            record_type = SociCoopCol
+            record_name = "Alta Soci Col·lectiu:" + row[0]
+            GeneralProject.create()
+        elif row[1] == 'pub':
+            #create public project
+            record_type = ProjPublic
+            record_name = "Alta Projecte Públic:" + row[0]
+        else:
+            logger.ERROR("Membership type uncontrolled: %s", row[1])
+            sys.exit('something went wrong on %s' % (row[1]))
         #create record of the membership
         record = WelcomeIcRecord.create(name=record_name,
             record_type=record_type)
-        logger.debug("Inserting membership: %s", row[0])
-        logger.debug("ic_project= %d", cicProject)
-        logger.debug("ic_record= %d", record.id)
-        logger.debug("join_date= %s", row[17])
-        membership = WelcomeIcMembership.create(human=human.id,
-                ic_project=cicProject, ic_record=record.id,
-                join_date=row[17], ic_cesnum=row[0])
-        logger.debug("ic_record.id: %d", membership.ic_record.id)
-        logger.debug("human.id: %d", human.id)
-        #create the relation between person and membership
-        personmembership = WelcomeIcPersonMembership.create(
-            ic_membership=membership.ic_record.id, person=human.id)
+        #create membership
+        file1_CreateMembership(row, human, record)
         logger.info("afegit nou soci: %s", row[0])
 
 
@@ -189,24 +222,14 @@ def FirstFile(filename):
         reader = csv.reader(f, dialect)
         try:
             for row in reader:
-                #row[0] = UID (COOP number)
                 logger.info("Soci: %s", row[0])
-                if row[1] == 'ind':
-                    #logger.info("Create a Soci ind")
-                    ProcessRow(row)
-                elif row[1] == 'com' or row[1] == 'org':
-                    #logger.info("Create a Soci col")
-                    ProcessRow(row)
-                elif row[1] == 'pub':
-                    #logger.info("Create a Proj Pub")
+                if row[1] == 'ind' or row[1] == 'pub' or row[1] == 'org'\
+                     or row[1] == 'com':
                     ProcessRow(row)
                 else:
                     logger.info("avoid membership type: %s", row[1])
         except csv.Error as e:
             sys.exit('file %s, line %d: %s' % (filename, reader.line_num, e))
-
-FirstFile('usersCES.csv')
-
 
 ###########################
 ## second file: SocisCIC ##
@@ -269,4 +292,10 @@ def SecondFile(filename):
         except csv.Error as e:
             sys.exit('file %s, line %d: %s' % (filename, reader.line_num, e))
 
+
+############################
+## Main call of functions ##
+############################
+
+FirstFile('usersCES.csv')
 #SecondFile('Socis_CIC-21_7_2014.csv')
