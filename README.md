@@ -7,7 +7,7 @@ Dependencies
 ------------
 
 - peewee (creates the models.py file extracting the structure from the database)
-
+ - [Peewee website](http://docs.peewee-orm.com/en/latest/)
 Instructions
 ------------
 
