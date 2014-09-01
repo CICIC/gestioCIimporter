@@ -1,8 +1,8 @@
 from peewee import *
 
-database = MySQLDatabase('gestioCI_butterfly', **{
-                         'passwd': 'gestioCI', 'host': 'localhost',
-                         'user': 'gestioCI'})
+database = MySQLDatabase(
+    'gestioCI_butterfly', **
+    {'passwd': 'gestioCI', 'host': 'localhost', 'user': 'gestioCI'})
 
 
 class UnknownField(object):
@@ -10,6 +10,7 @@ class UnknownField(object):
 
 
 class BaseModel(Model):
+
     class Meta:
         database = database
 
@@ -20,8 +21,7 @@ class GeneralType(BaseModel):
     level = IntegerField()
     lft = IntegerField()
     name = CharField(max_length=200)
-    parent = ForeignKeyField(
-        db_column='parent_id', null=True, rel_model='self')
+    parent = ForeignKeyField(db_column='parent_id', null=True, rel_model='self')
     rght = IntegerField()
     tree = IntegerField(db_column='tree_id')
 
@@ -58,8 +58,7 @@ class GeneralRegion(BaseModel):
     level = IntegerField()
     lft = IntegerField()
     name = CharField(max_length=100)
-    parent = ForeignKeyField(
-        db_column='parent_id', null=True, rel_model='self')
+    parent = ForeignKeyField(db_column='parent_id', null=True, rel_model='self')
     region_type = ForeignKeyField(
         db_column='region_type_id', null=True, rel_model=GeneralRegionType)
     rght = IntegerField()
@@ -75,7 +74,7 @@ class GeneralHuman(BaseModel):
     description = TextField(null=True)
     email = CharField(max_length=100)
     name = CharField(max_length=200)
-    nickname = CharField(max_length=50)
+    nickname = CharField(max_length=50, default='')
     telephone_cell = CharField(max_length=20)
     telephone_land = CharField(max_length=20)
     website = CharField(max_length=100)
@@ -138,11 +137,11 @@ class GeneralAddress(BaseModel):
 
 
 class GeneralPerson(BaseModel):
-    email2 = CharField(max_length=75)
+    email2 = CharField(max_length=75, default='')
     human = PrimaryKeyField(db_column='human_id')
-    id_card = CharField(max_length=9)
-    nickname2 = CharField(max_length=20)
-    surnames = CharField(max_length=100)
+    id_card = CharField(max_length=9, default='')
+    nickname2 = CharField(max_length=20, default='')
+    surnames = CharField(max_length=100, default='')
 
     class Meta:
         db_table = 'General_person'
@@ -155,8 +154,7 @@ class GeneralRelation(BaseModel):
     level = IntegerField()
     lft = IntegerField()
     name = CharField(max_length=100)
-    parent = ForeignKeyField(
-        db_column='parent_id', null=True, rel_model='self')
+    parent = ForeignKeyField(db_column='parent_id', null=True, rel_model='self')
     rght = IntegerField()
     tree = IntegerField(db_column='tree_id')
     verb = CharField(max_length=50)
@@ -205,15 +203,15 @@ class GeneralCompany(BaseModel):
 
 
 class GeneralProject(BaseModel):
-    ecommerce = IntegerField()
-    email2 = CharField(max_length=75)
+    ecommerce = IntegerField(default=0)
+    email2 = CharField(max_length=75, default='')
     human = PrimaryKeyField(db_column='human_id')
     level = IntegerField()
     lft = IntegerField()
     parent = IntegerField(db_column='parent_id', null=True)
     project_type = IntegerField(db_column='project_type_id', null=True)
     rght = IntegerField()
-    socialweb = CharField(max_length=100)
+    socialweb = CharField(max_length=100, default='')
     tree = IntegerField(db_column='tree_id')
 
     class Meta:
@@ -226,8 +224,7 @@ class WelcomeIcType(BaseModel):
     level = IntegerField()
     lft = IntegerField()
     name = CharField(max_length=200)
-    parent = ForeignKeyField(
-        db_column='parent_id', null=True, rel_model='self')
+    parent = ForeignKeyField(db_column='parent_id', null=True, rel_model='self')
     rght = IntegerField()
     tree = IntegerField(db_column='tree_id')
 
@@ -314,7 +311,7 @@ class WelcomeIcMembership(BaseModel):
     join_date = DateField(null=True)
     join_fee = ForeignKeyField(
         db_column='join_fee_id', null=True, rel_model=WelcomeFee)
-    virtual_market = IntegerField()
+    virtual_market = IntegerField(default=0)
 
     class Meta:
         db_table = 'Welcome_ic_membership'
@@ -363,3 +360,13 @@ class WelcomeIcPersonMembership(BaseModel):
 
     class Meta:
         db_table = 'Welcome_ic_person_membership'
+
+
+class WelcomeIcProjectMembership(BaseModel):
+    ic_membership = ForeignKeyField(
+        db_column='ic_membership_id', primary_key=True,
+        rel_model=WelcomeIcMembership)
+    project = ForeignKeyField(db_column='project_id', rel_model=GeneralProject)
+
+    class Meta:
+        db_table = 'Welcome_ic_project_membership'

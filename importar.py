@@ -7,7 +7,7 @@ import logging
 from peewee import DoesNotExist
 
 from models import WelcomeIcMembership, WelcomeIcRecord
-from models import WelcomeIcPersonMembership
+from models import WelcomeIcPersonMembership, WelcomeIcProjectMembership
 from models import GeneralHuman, GeneralPerson, GeneralRelHumanAddresses
 from models import GeneralAddress, GeneralProject
 
@@ -30,7 +30,7 @@ fh.setLevel(logging.DEBUG)
 #fh2.setLevel(logging.WARNING)
 # create console handler with a higher log level
 ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
+ch.setLevel(logging.INFO)
 # create formatter and add it to the handlers
 formatter = logging.Formatter('%(name)s %(levelname)s: %(message)s')
 fh.setFormatter(formatter)
@@ -44,7 +44,18 @@ logger.addHandler(ch)
 #################
 ## Global vars ##
 #################
-cicProject = 3
+
+#project related constants
+cicProject_parent = 3
+generalProject_type = 13  # general project
+collectiveProject_type = 27
+larderProject_type = 66
+commonProject_type = 26
+nalProject_type = 21
+exProject_type = 22
+cicProject_type = 24
+
+#membership related constants
 SociCoopInd = 7
 SociCoopCol = 8
 ProjPublic = 9
@@ -62,7 +73,7 @@ QuotaAltaCol = 36
 # ----
 # list of the content of each field
 #row[0] = UID (COOP number)
-#row[1] = User Type (adm,com,fam,ind,org,pub,vir)
+#row[1] = User Type (adm,ind,org,cic,ex,nal,reb,pub,vir)
  #adm:admin(avoid), com:company, fam:shared, ind:individual,
  #org:organitzation, pub:public, vir:virtual(avoid)
 #row[2] = Firstname
@@ -91,7 +102,6 @@ QuotaAltaCol = 36
 def file1_CreateHuman(row):
     "Process the CSV data related to Human class and saves to the database"
 
-    #being doesn't exists, then needs to be created
     #saving telephone numbers enhanced
     #row[10] = PhoneHome
     #row[11] = PhoneWork
@@ -101,10 +111,8 @@ def file1_CreateHuman(row):
     if row[10] == '':
         if row[11] != '':
             phone = row[11]
-            logger.debug("phoneHome empty but phoneWork filled")
         elif row[12] != '':
             phone = row[12]
-            logger.debug("phoneHome, phoneWork empty, FAX filled")
     #enhanced getting website url
     #row[15] = IM
      #(if beggins with 'http' or 'www' copy to website if empty)
@@ -113,15 +121,16 @@ def file1_CreateHuman(row):
         if row[15].startswith('www') or row[15].startswith('http'):
             row[16] = row[15]
     #save to the db
-    return GeneralHuman.create(
-                                name=row[2], email=row[14],
-                                telephone_cell=row[13], telephone_land=phone,
-                                website=row[16])
+    hum = GeneralHuman.create(name=row[2], email=row[14],
+        telephone_cell=row[13], telephone_land=phone, website=row[16])
+    logger.debug("From:%s creating human:%s", row[0], hum.id)
+    return hum
 
 
 def file1_CreateAddress(row, human):
     "Process the CSV data related to Address class and saves to the database"
 
+    #fix postalcode format
     cp = row[8]
     if re.search(r"[0-9]{4}", cp):
         cp = '0' + cp
@@ -130,26 +139,97 @@ def file1_CreateAddress(row, human):
     #create address
     address = GeneralAddress.create(name='CES address', p_address=row[5],
         ic_larder=0, postalcode=cp, town=row[6])
+    logger.debug("create address: %s", address.id)
     #create relation between person and address
     GeneralRelHumanAddresses.create(
-        address=address, human=human.id, main_address=0)
+        address=address.id, human=human.id, main_address=0)
+    logger.debug("Address %s linked to human.id:%s", address.id, human.id)
 
 
-def file1_CreateMembership(row, human, record):
-    "Process the CSV data related to Membership class and saves to the database"
+def file1_CreatePerson(row):
+    "Process the data related to Person Membership and saves to the database"
+    #create human
+    human = file1_CreateHuman(row)
+    #create address
+    file1_CreateAddress(row, human)
+    #create person
+    GeneralPerson.create(human=human.id, surnames=row[3])
+    logger.debug("Create person: %s", human.id)
+    #create record of the membership
+    record = WelcomeIcRecord.create(name="Alta Soci Individual:" + row[0],
+        record_type=SociCoopInd)
+    logger.debug("created record %s", record.id)
+    #fix data format
+    if row[17] != "":
+        data = row[17].split(' ')  # get yyyy/mm/dd
+        data = data[0].replace('/', '-')
+    else:
+        data = "1984-06-08"
+        logger.error("Empty creation data!")
+    #create membership
+    WelcomeIcMembership.create(human=human.id, ic_project=cicProject_parent,
+        ic_record=record.id, join_date=data, ic_cesnum=row[0])
+    logger.debug("created %s Membership %s", row[0], record.id)
+    #link person to membership
+    WelcomeIcPersonMembership.create(ic_membership=record.id, person=human.id)
+    logger.debug("Person %s linked to membership %s", human.id, record.id)
 
-    logger.debug("Inserting membership: %s", row[0])
-    logger.debug("ic_project= %d", cicProject)
-    logger.debug("ic_record= %d", record.id)
-    logger.debug("join_date= %s", row[17])
+
+def file1_CreateProject(row):
+    "Process the data related to Project Membership and saves to the database"
+
+    #create human
+    human = file1_CreateHuman(row)
+    #create address
+    file1_CreateAddress(row, human)
+
+    #define membership type
+    record_type = SociCoopCol
+    record_name = "Alta Soci Col·lectiu:" + row[0]
+    #select project type
+    if row[1] == 'org':
+        projType = collectiveProject_type
+    elif row[1] == 'cic':
+        projType = cicProject_type
+    elif row[1] == 'ex':
+        projType = exProject_type
+    elif row[1] == 'nal':
+        projType = nalProject_type
+    elif row[1] == 'reb':
+        projType = larderProject_type
+    elif row[1] == 'pub':
+        projType = commonProject_type
+        record_type = ProjPublic
+        record_name = "Alta Projecte Públic:" + row[0]
+    #create project
+    GeneralProject.create(human=human.id, project_type=projType,
+        parent=cicProject_parent, social_web=row[16])
+    #create membership record
+    record = WelcomeIcRecord.create(name=record_name,
+        record_type=record_type)
+    if row[17] != '':
+        data = row[17].split(' ')  # get yyyy/mm/dd
+        data = data[0].replace('/', '-')
+    else:
+        data = "1984-06-08"
+        logger.error("Empty creation data!")
+    #create membership
     membership = WelcomeIcMembership.create(human=human.id,
-         ic_project=cicProject, ic_record=record.id,
-         join_date=row[17], ic_cesnum=row[0])
-    logger.debug("ic_record.id: %d", membership.ic_record.id)
-    logger.debug("human.id: %d", human.id)
-    #create the relation between person and membership
-    WelcomeIcPersonMembership.create(ic_membership=membership.ic_record.id,
-                                     person=human.id)
+            ic_project=cicProject_parent, ic_record=record.id,
+            join_date=data, ic_cesnum=row[0])
+    logger.debug("Membership %s created", record.id)
+
+    #link project to membership
+    WelcomeIcProjectMembership.create(ic_membership=membership.ic_record.id,
+                                     project=human.id)
+    logger.debug("Project %s linked to membership %s", human.id, record.id)
+
+
+def isCollectiveProject(pt):
+    "Guess if the project is collective"
+
+    return pt == 'org' or pt == 'cic' or pt == 'ex' or pt == 'nal'\
+        or pt == 'reb' or pt == 'pub'
 
 
 def ProcessRow(row):
@@ -159,59 +239,24 @@ def ProcessRow(row):
         #check if exists a member with the CESnumber
         membership = WelcomeIcMembership.get(
             WelcomeIcMembership.ic_cesnum == row[0])
+        logger.info("Membership found: %s", membership.ic_cesnum)
         #check the consistency of the database and try to fix it
-        try:
-            personmembership = WelcomeIcPersonMembership.get(
-                WelcomeIcPersonMembership.ic_membership == membership)
-        except DoesNotExist as e:
-            logger.warning("personmembership inconsistent: %s", row[0])
-            logger.warning("e: %s", e)
-            #TODO create whatever-membership to db table
-        try:
-            GeneralPerson.get(
-                GeneralPerson.human == personmembership.person.human)
-        except DoesNotExist as e:
-            logger.warning("GeneralPerson inconsistent: %s", row[0])
-            logger.warning("e: %s", e)
-            #TODO add Person or project to db table
-        try:
-            GeneralHuman.get(GeneralHuman.id == personmembership.person.human)
-        except DoesNotExist as e:
-            logger.warning("GeneralHuman inconsistent: %s", row[0])
-            logger.warning("e: %s", e)
-            #TODO add Human to db table
-    except DoesNotExist as e:
-        human = file1_CreateHuman(row)
-        file1_CreateAddress(row, human)
+        #maybe another day...
+    except DoesNotExist:
+        logger.debug("ces number not found: %s", row[0])
         #TODO: create join_fee on the second file
-         #here we don't have enogh info
-        #create the membership
-        #find what kind of membership
-        #row[1] = User Type (adm,com,fam,ind,org,pub,vir)
+         #here we don't have enough info
+        #row[1] = User Type (adm,ind,org,cic,ex,nal,reb,pub,vir)
         if row[1] == 'ind':
             #create person
-            GeneralPerson.create(human=human.id, surnames=row[3])
-            #define membership type
-            record_type = SociCoopInd
-            record_name = "Alta Soci Individual:" + row[0]
-        elif row[1] == 'com' or row[1] == 'org':
+            file1_CreatePerson(row)
+            logger.info("afegit soci coop ind: %s", row[0])
+        elif isCollectiveProject(row[1]):
             #create project
-            record_type = SociCoopCol
-            record_name = "Alta Soci Col·lectiu:" + row[0]
-            GeneralProject.create()
-        elif row[1] == 'pub':
-            #create public project
-            record_type = ProjPublic
-            record_name = "Alta Projecte Públic:" + row[0]
+            file1_CreateProject(row)
+            logger.info("afegit nou projecte: %s", row[0])
         else:
-            logger.ERROR("Membership type uncontrolled: %s", row[1])
-            sys.exit('something went wrong on %s' % (row[1]))
-        #create record of the membership
-        record = WelcomeIcRecord.create(name=record_name,
-            record_type=record_type)
-        #create membership
-        file1_CreateMembership(row, human, record)
-        logger.info("afegit nou soci: %s", row[0])
+            logger.debug("avoid %s -> type: %s", row[0], row[1])
 
 
 def FirstFile(filename):
@@ -222,12 +267,7 @@ def FirstFile(filename):
         reader = csv.reader(f, dialect)
         try:
             for row in reader:
-                logger.info("Soci: %s", row[0])
-                if row[1] == 'ind' or row[1] == 'pub' or row[1] == 'org'\
-                     or row[1] == 'com':
-                    ProcessRow(row)
-                else:
-                    logger.info("avoid membership type: %s", row[1])
+                ProcessRow(row)
         except csv.Error as e:
             sys.exit('file %s, line %d: %s' % (filename, reader.line_num, e))
 
@@ -250,7 +290,7 @@ def SecondFile(filename):
                 human = GeneralHuman()
                 #print row
                 #print "Num. COOP: "+row[0]
-                #TODO fix: waiting to adapt to the db values
+                #FIXME: waiting to adapt to the db values
                 #Conditions: Actiu-> has COOP code; Baixa -> data de baixa;
                 #Pendent -> quote pending
                 if row[1] == "Actiu CIC":
