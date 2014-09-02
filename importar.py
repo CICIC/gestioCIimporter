@@ -1,4 +1,4 @@
-# coding: utf8
+# coding: utf
 import csv
 import sys
 import re
@@ -20,26 +20,32 @@ from models import GeneralAddress, GeneralProject
 ## logger config ##
 ###################
 
-# create logger with 'spam_application'
-logger = logging.getLogger('gestioCIimporter')
+# create loggers 
+logger = logging.getLogger('File1')
 logger.setLevel(logging.DEBUG)
+logger2 = logging.getLogger('File2')
+logger2.setLevel(logging.DEBUG)
 # create file handler which logs even debug messages
-fh = logging.FileHandler('bitacora-debug.log')
+fh = logging.FileHandler('bitacora-file1.log')
 fh.setLevel(logging.DEBUG)
-#fh2 = logging.FileHandler('bitacora-warning.log')
-#fh2.setLevel(logging.WARNING)
+fh2 = logging.FileHandler('bitacora-file2.log')
+fh2.setLevel(logging.DEBUG)
 # create console handler with a higher log level
 ch = logging.StreamHandler()
 ch.setLevel(logging.INFO)
+ch2 = logging.StreamHandler()
+ch2.setLevel(logging.DEBUG)
 # create formatter and add it to the handlers
 formatter = logging.Formatter('%(name)s %(levelname)s: %(message)s')
 fh.setFormatter(formatter)
-#fh2.setFormatter(formatter)
+fh2.setFormatter(formatter)
 ch.setFormatter(formatter)
+ch2.setFormatter(formatter)
 # add the handlers to the logger
 logger.addHandler(fh)
-#logger.addHandler(fh2)
+logger2.addHandler(fh2)
 logger.addHandler(ch)
+logger2.addHandler(ch2)
 
 #################
 ## Global vars ##
@@ -96,7 +102,7 @@ QuotaAltaCol = 36
  #(if beggins with 'http' or 'www' copy to website if empty)
 #row[16] = WebSite
 #row[17] = Created (join_date)
-#row[18] = Locked (if locked avoid to import)
+#row[18] = Locked (if locked avoid to import?)
 
 
 def file1_CreateHuman(row):
@@ -108,11 +114,35 @@ def file1_CreateHuman(row):
     #row[12] = PhoneFax
     #row[13] = PhoneMobile
     phone = row[10]
-    if row[10] == '':
+    cellphone = row[13]
+    if re.match(r"6",phone) and cellphone == '':
+        cellphone = phone
+        phone = ''
+    if phone == '':
         if row[11] != '':
             phone = row[11]
         elif row[12] != '':
             phone = row[12]
+    phone = phone.replace(' ', '')
+    phone = phone.replace('.', '')
+    phone = phone.replace('-', '')
+    phone = phone.replace('+34', '')
+    if re.match(r"0034", phone):
+        phone = phone[4:]
+    phone = phone[0:9]
+    cellphone = cellphone.replace(' ', '')
+    cellphone = cellphone.replace('.', '')
+    cellphone = cellphone.replace('-', '')
+    cellphone = cellphone[0:9]
+    cellphone = cellphone.replace('+34', '')
+    if re.match(r"0034", cellphone):
+        cellphone = cellphone[4:]
+    if not re.match(r"[0-9]{9}", phone) and len(phone) > 9:
+        phone = ''
+    if not re.match(r"[0-9]{9}", cellphone) and len(cellphone) > 9:
+        cellphone = ''
+    logger.debug("PhoneH:%s PhoneW:%s PhoneF:%s > Phone:%s", row[10], row[11], row[12], phone)
+    logger.debug("PhoneM:%s cellphone:%s", row[13], cellphone)
     #enhanced getting website url
     #row[15] = IM
      #(if beggins with 'http' or 'www' copy to website if empty)
@@ -122,7 +152,7 @@ def file1_CreateHuman(row):
             row[16] = row[15]
     #save to the db
     hum = GeneralHuman.create(name=row[2], email=row[14],
-        telephone_cell=row[13], telephone_land=phone, website=row[16])
+        telephone_cell=cellphone, telephone_land=phone, website=row[16])
     logger.debug("From:%s creating human:%s", row[0], hum.id)
     return hum
 
@@ -132,10 +162,12 @@ def file1_CreateAddress(row, human):
 
     #fix postalcode format
     cp = row[8]
-    if re.search(r"[0-9]{4}", cp):
+    logger.debug("postalcodeA:%s", cp)
+    if re.search(r"^[0-9]{4}", cp) and len(cp) == 4:
         cp = '0' + cp
-    if not re.search(r"[0-9]{5}", cp):
+    if (not re.search(r"^[0-9]{5}", cp)) or len(cp) != 5:
         cp = ''
+    logger.debug("postalcodeB:%s", cp)
     #create address
     address = GeneralAddress.create(name='CES address', p_address=row[5],
         ic_larder=0, postalcode=cp, town=row[6])
@@ -225,14 +257,14 @@ def file1_CreateProject(row):
     logger.debug("Project %s linked to membership %s", human.id, record.id)
 
 
-def isCollectiveProject(pt):
+def file1_isCollectiveProject(pt):
     "Guess if the project is collective"
 
     return pt == 'org' or pt == 'cic' or pt == 'ex' or pt == 'nal'\
         or pt == 'reb' or pt == 'pub'
 
 
-def ProcessRow(row):
+def file1_ProcessRow(row):
     "Gets a row from the CSV and stores it's data to the database"
 
     try:
@@ -251,7 +283,7 @@ def ProcessRow(row):
             #create person
             file1_CreatePerson(row)
             logger.info("afegit soci coop ind: %s", row[0])
-        elif isCollectiveProject(row[1]):
+        elif file1_isCollectiveProject(row[1]):
             #create project
             file1_CreateProject(row)
             logger.info("afegit nou projecte: %s", row[0])
@@ -262,12 +294,12 @@ def ProcessRow(row):
 def FirstFile(filename):
     "Gets the first file to read and process it"
     with open(filename, 'rb') as f:
-        dialect = csv.Sniffer().sniff(f.read(1024))
+    	dialect = csv.Sniffer().sniff(f.read(1024))
         f.seek(0)
         reader = csv.reader(f, dialect)
         try:
             for row in reader:
-                ProcessRow(row)
+                file1_ProcessRow(row)
         except csv.Error as e:
             sys.exit('file %s, line %d: %s' % (filename, reader.line_num, e))
 
@@ -275,8 +307,9 @@ def FirstFile(filename):
 ## second file: SocisCIC ##
 ###########################
 # things to check in the database:
-# - if the COOP number exists don't do anything
-# - if the COOP doesn't exists: create user? create Person and IcMembership
+# - if the COOP number exists add the fee record
+# - if the COOP doesn't exists: it's an ERROR
+# - check the status of the membership 
 
 
 def SecondFile(filename):
@@ -286,49 +319,13 @@ def SecondFile(filename):
         reader = csv.reader(f, dialect)
         try:
             for row in reader:
-                GeneralPerson()
-                human = GeneralHuman()
-                #print row
-                #print "Num. COOP: "+row[0]
-                #FIXME: waiting to adapt to the db values
-                #Conditions: Actiu-> has COOP code; Baixa -> data de baixa;
-                #Pendent -> quote pending
-                if row[1] == "Actiu CIC":
-                    row[1] = "En actiu"
-                elif row[1] == "Baixa CIC":
-                    row[1] = "Donat de baixa"
-                #print "Estat CIC: "+row[1]
-                data = row[2].split('/')
-                if len(data) > 1:
-                    row[2] = data[2] + "-" + data[1] + "-" + data[0]
-                #print "Data Alta: "+row[2]
-                #print "Nom i Cognoms: "+row[3]
-                human.name = row[3]
-                #print "Comarca: "+row[4]
-                # codi postal fix
-                if len(row[5]) < 5 and len(row[5]) > 0:
-                    row[5] = "0" + row[5]
-                #print "Codi Postal: "+row[5]
-                #print "Ciutat: "+row[6]
-                #print "Tel�fon: "+row[7]
-                #print "Correu-e: "+row[8]
-                human.email = row[8]
-                #print "Forma de pagament: "+row[9]
-                #print "Aport. EUR: "+row[10]
-                #print "Aport. ECO: "+row[11]
-                #print "Aport. BTC: "+row[12]
-                #print "Aport. H: "+row[13]
-                if human.email != "":
-                    if not GeneralHuman.get(email=human.email):
-                        #print "Hum� '"+human.name+"' ja existeix a la bbdd"
-                        #print "Correu-e: "+human.email
-                    #else:
-                        human = GeneralHuman.create(name=row[3], email=row[8])
-                        print "Afegit Humà '" + human.name + " a la bbdd"
-                else:
-                    print row[0] + " Humà sense correu, nom: " + human.name
-                #human.save()
-
+                if row[1] == 'Sense Info':
+                    membership = None
+                    try:
+                        membership = WelcomeIcMembership.get(WelcomeIcMembership.ic_cesnum == row[0])
+                        logger2.info("Membership found: %s", membership.ic_cesnum)
+                    except DoesNotExist:
+                        logger2.info("Membership not found %s", row[0]) 
         except csv.Error as e:
             sys.exit('file %s, line %d: %s' % (filename, reader.line_num, e))
 
@@ -338,4 +335,4 @@ def SecondFile(filename):
 ############################
 
 FirstFile('usersCES.csv')
-#SecondFile('Socis_CIC-21_7_2014.csv')
+SecondFile('Socis_CIC-21_7_2014.csv')
