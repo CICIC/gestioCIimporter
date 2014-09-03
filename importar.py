@@ -1,4 +1,4 @@
-# coding: utf
+#  coding: utf8
 import csv
 import sys
 import re
@@ -20,7 +20,7 @@ from models import GeneralAddress, GeneralProject
 ## logger config ##
 ###################
 
-# create loggers 
+# create loggers
 logger = logging.getLogger('File1')
 logger.setLevel(logging.DEBUG)
 logger2 = logging.getLogger('File2')
@@ -105,8 +105,8 @@ QuotaAltaCol = 36
 #row[18] = Locked (if locked avoid to import?)
 
 
-def file1_CreateHuman(row):
-    "Process the CSV data related to Human class and saves to the database"
+def file1_cleanRowProcess(row):
+    "Clean the data from the CSV"
 
     #saving telephone numbers enhanced
     #row[10] = PhoneHome
@@ -115,7 +115,7 @@ def file1_CreateHuman(row):
     #row[13] = PhoneMobile
     phone = row[10]
     cellphone = row[13]
-    if re.match(r"6",phone) and cellphone == '':
+    if re.match(r"6", phone) and cellphone == '':
         cellphone = phone
         phone = ''
     if phone == '':
@@ -141,8 +141,8 @@ def file1_CreateHuman(row):
         phone = ''
     if not re.match(r"[0-9]{9}", cellphone) and len(cellphone) > 9:
         cellphone = ''
-    logger.debug("PhoneH:%s PhoneW:%s PhoneF:%s > Phone:%s", row[10], row[11], row[12], phone)
-    logger.debug("PhoneM:%s cellphone:%s", row[13], cellphone)
+    row[10] = phone
+    row[13] = cellphone
     #enhanced getting website url
     #row[15] = IM
      #(if beggins with 'http' or 'www' copy to website if empty)
@@ -150,32 +150,80 @@ def file1_CreateHuman(row):
     if row[16] == '':
         if row[15].startswith('www') or row[15].startswith('http'):
             row[16] = row[15]
+    #fix postalcode format
+    if re.search(r"^[0-9]{4}", row[8]) and len(row[8]) == 4:
+        row[8] = '0' + row[8]
+    if (not re.search(r"^[0-9]{5}", row[8])) or len(row[8]) != 5:
+        row[8] = ''
+    #fix data format
+    if row[17] != '':
+        row[17] = row[17].split(' ')  # get yyyy/mm/dd
+        row[17] = row[17][0].replace('/', '-')
+    else:
+        row[17] = "1984-06-08"
+        logger.error("Empty creation data!")
+
+
+def file1_CreateHuman(row):
+    "Process the CSV data related to Human class and saves to the database"
+
     #save to the db
     hum = GeneralHuman.create(name=row[2], email=row[14],
-        telephone_cell=cellphone, telephone_land=phone, website=row[16])
+        telephone_cell=row[13], telephone_land=row[10], website=row[16])
     logger.debug("From:%s creating human:%s", row[0], hum.id)
+    return hum
+
+
+def file1_UpdateHuman(row, humanID):
+    "Process the CSV data related to Human class and saves to the database"
+
+    #TODO: update to the db
+    hum = GeneralHuman.get(GeneralHuman.id==humanID)
+    if hum.name == '':
+        hum.name = row[2]
+    #email keep the database value
+    if hum.telephone_cell == '':
+        hum.telephone_cell = row[13]
+    if hum.telephone_land == '':
+        hum.telephone_land = row[10]
+    if hum.website == '':
+        hum.website = row[16]
+    hum.save()
+    logger.debug("Updated human:%s", hum.id)
     return hum
 
 
 def file1_CreateAddress(row, human):
     "Process the CSV data related to Address class and saves to the database"
 
-    #fix postalcode format
-    cp = row[8]
-    logger.debug("postalcodeA:%s", cp)
-    if re.search(r"^[0-9]{4}", cp) and len(cp) == 4:
-        cp = '0' + cp
-    if (not re.search(r"^[0-9]{5}", cp)) or len(cp) != 5:
-        cp = ''
-    logger.debug("postalcodeB:%s", cp)
     #create address
     address = GeneralAddress.create(name='CES address', p_address=row[5],
-        ic_larder=0, postalcode=cp, town=row[6])
+        ic_larder=0, postalcode=row[8], town=row[6])
     logger.debug("create address: %s", address.id)
     #create relation between person and address
     GeneralRelHumanAddresses.create(
-        address=address.id, human=human.id, main_address=0)
-    logger.debug("Address %s linked to human.id:%s", address.id, human.id)
+        address=address.id, human=human.id, main_address=1)
+
+
+def file1_UpdateAddress(row, humanID):
+    "Update or create the Address in the database"
+
+    #check if has an address
+    try:
+        relhumaddr = GeneralRelHumanAddresses.get(GeneralRelHumanAddresses.human == humanID)
+        addr = GeneralAddress.get(GeneralAddress.id == relhumaddr.address.id)
+        if addr.name == '':
+            addr.name = "CES address"
+        if addr.p_address == '':
+            addr.p_address = row[5]
+        if addr.postalcode == '':
+            addr.postalcode = row[8]
+        if addr.town == '':
+            addr.town = row[6]
+        addr.save()
+        logger.debug("Address from %s updated", humanID)
+    except DoesNotExist:
+        file1_CreateAddress(row, human)
 
 
 def file1_CreatePerson(row):
@@ -186,25 +234,27 @@ def file1_CreatePerson(row):
     file1_CreateAddress(row, human)
     #create person
     GeneralPerson.create(human=human.id, surnames=row[3])
-    logger.debug("Create person: %s", human.id)
     #create record of the membership
     record = WelcomeIcRecord.create(name="Alta Soci Individual:" + row[0],
         record_type=SociCoopInd)
-    logger.debug("created record %s", record.id)
-    #fix data format
-    if row[17] != "":
-        data = row[17].split(' ')  # get yyyy/mm/dd
-        data = data[0].replace('/', '-')
-    else:
-        data = "1984-06-08"
-        logger.error("Empty creation data!")
     #create membership
     WelcomeIcMembership.create(human=human.id, ic_project=cicProject_parent,
-        ic_record=record.id, join_date=data, ic_cesnum=row[0])
-    logger.debug("created %s Membership %s", row[0], record.id)
+        ic_record=record.id, join_date=row[17], ic_cesnum=row[0])
     #link person to membership
     WelcomeIcPersonMembership.create(ic_membership=record.id, person=human.id)
-    logger.debug("Person %s linked to membership %s", human.id, record.id)
+
+
+def file1_UpdatePerson(row, humanID):
+    "Gets Person Membership and updates its data to the database"
+    #update human
+    human = file1_UpdateHuman(row, humanID)
+    #update the  person
+    person = GeneralPerson.get(GeneralPerson.human == humanID)
+    if person.surnames == '':
+        person.surnames = row[3]
+    person.save()
+    #update the address
+    file1_UpdateAddress(row, humanID)
 
 
 def file1_CreateProject(row):
@@ -235,27 +285,29 @@ def file1_CreateProject(row):
         record_name = "Alta Projecte Públic:" + row[0]
     #create project
     GeneralProject.create(human=human.id, project_type=projType,
-        parent=cicProject_parent, social_web=row[16])
+        parent=cicProject_parent)
     #create membership record
     record = WelcomeIcRecord.create(name=record_name,
         record_type=record_type)
-    if row[17] != '':
-        data = row[17].split(' ')  # get yyyy/mm/dd
-        data = data[0].replace('/', '-')
-    else:
-        data = "1984-06-08"
-        logger.error("Empty creation data!")
     #create membership
     membership = WelcomeIcMembership.create(human=human.id,
             ic_project=cicProject_parent, ic_record=record.id,
-            join_date=data, ic_cesnum=row[0])
-    logger.debug("Membership %s created", record.id)
+            join_date=row[17], ic_cesnum=row[0])
 
     #link project to membership
     WelcomeIcProjectMembership.create(ic_membership=membership.ic_record.id,
                                      project=human.id)
-    logger.debug("Project %s linked to membership %s", human.id, record.id)
 
+
+def file1_UpdateProject(row, projectID):
+    "Update project process"
+    
+    #update human
+    logger.debug("Updating human:%s", projectID)
+    human = file1_UpdateHuman(row, projectID)
+    #update the address
+    file1_UpdateAddress(row, projectID)
+    #here we don't have info related to GeneralProject class to update
 
 def file1_isCollectiveProject(pt):
     "Guess if the project is collective"
@@ -272,21 +324,36 @@ def file1_ProcessRow(row):
         membership = WelcomeIcMembership.get(
             WelcomeIcMembership.ic_cesnum == row[0])
         logger.info("Membership found: %s", membership.ic_cesnum)
-        #check the consistency of the database and try to fix it
-        #maybe another day...
+        #check the consistency of the database and try to fix it or update it
+        try:
+            pm = WelcomeIcPersonMembership.get(
+                            ic_membership=membership.ic_record.id)
+            #update the person data
+            logger.info("Updating Person: %s", pm.person.human)
+            file1_UpdatePerson(row, pm.person.human)
+        except DoesNotExist:
+            try:
+                projectMem = WelcomeIcProjectMembership.get(
+                            WelcomeIcProjectMembership.ic_membership==membership.ic_record.id)
+                logger.info("Updating Project: %s", projectMem.project.human)
+                #update project data
+                file1_UpdateProject(row, projectMem.project.human)
+            except DoesNotExist:
+                logger.debug("project of %s not found database inconsistent",
+                             row[0])
     except DoesNotExist:
         logger.debug("ces number not found: %s", row[0])
         #TODO: create join_fee on the second file
-         #here we don't have enough info
+         #here we don't have info
         #row[1] = User Type (adm,ind,org,cic,ex,nal,reb,pub,vir)
         if row[1] == 'ind':
             #create person
             file1_CreatePerson(row)
-            logger.info("afegit soci coop ind: %s", row[0])
+            logger.info("Added new member: %s", row[0])
         elif file1_isCollectiveProject(row[1]):
             #create project
             file1_CreateProject(row)
-            logger.info("afegit nou projecte: %s", row[0])
+            logger.info("Added new project: %s", row[0])
         else:
             logger.debug("avoid %s -> type: %s", row[0], row[1])
 
@@ -294,11 +361,12 @@ def file1_ProcessRow(row):
 def FirstFile(filename):
     "Gets the first file to read and process it"
     with open(filename, 'rb') as f:
-    	dialect = csv.Sniffer().sniff(f.read(1024))
+        dialect = csv.Sniffer().sniff(f.read(1024))
         f.seek(0)
         reader = csv.reader(f, dialect)
         try:
             for row in reader:
+                file1_cleanRowProcess(row)
                 file1_ProcessRow(row)
         except csv.Error as e:
             sys.exit('file %s, line %d: %s' % (filename, reader.line_num, e))
@@ -309,7 +377,7 @@ def FirstFile(filename):
 # things to check in the database:
 # - if the COOP number exists add the fee record
 # - if the COOP doesn't exists: it's an ERROR
-# - check the status of the membership 
+# - check the status of the membership
 
 
 def SecondFile(filename):
@@ -322,10 +390,12 @@ def SecondFile(filename):
                 if row[1] == 'Sense Info':
                     membership = None
                     try:
-                        membership = WelcomeIcMembership.get(WelcomeIcMembership.ic_cesnum == row[0])
-                        logger2.info("Membership found: %s", membership.ic_cesnum)
+                        membership = WelcomeIcMembership.get(
+                            WelcomeIcMembership.ic_cesnum == row[0])
+                        logger2.info("Membership found: %s",
+                            membership.ic_cesnum)
                     except DoesNotExist:
-                        logger2.info("Membership not found %s", row[0]) 
+                        logger2.info("Membership not found %s", row[0])
         except csv.Error as e:
             sys.exit('file %s, line %d: %s' % (filename, reader.line_num, e))
 
@@ -334,5 +404,7 @@ def SecondFile(filename):
 ## Main call of functions ##
 ############################
 
-FirstFile('usersCES.csv')
+FirstFile('usersCEScurt.csv')
 SecondFile('Socis_CIC-21_7_2014.csv')
+
+print "bye!"
