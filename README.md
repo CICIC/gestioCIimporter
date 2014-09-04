@@ -22,8 +22,8 @@ Documentation
 ### File1 specification
 
 - row[0] = UID (COOP number)
-- row[1] = User Type (adm,ind,org,cic,ex,nal,reb,pub,vir)
- - VALUES: adm, org, cic, ex, nal, reb, pub, vir
+- row[1] = User Type
+ - POSSIBLE VALUES: adm, org, cic, ex, nal, reb, pub, vir
 - row[2] = Firstname
 - row[3] = Surnames
 - row[4] = OrgName (Name of the col·lective project)
