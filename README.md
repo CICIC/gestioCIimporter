@@ -42,3 +42,10 @@ Documentation
 - row[17] = Created 
 - row[18] = Locked
 
+### File2 specs
+
+"Num COOP";"Estat CIC";"Forma pagament";"Aportació  Euros";"Aportació  Ecos";"Aportació  Bitcoins";"Aportació  Hores"
+
+
+
+

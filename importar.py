@@ -11,6 +11,7 @@ from models import WelcomeIcPersonMembership, WelcomeIcProjectMembership
 from models import GeneralHuman, GeneralPerson, GeneralRelHumanAddresses
 from models import GeneralAddress, GeneralProject
 
+from importarFile0 import *
 from importarFile1 import *
 from importarFile2 import *
 # we have the old database and it has to be converted to the new structure.
@@ -22,7 +23,8 @@ from importarFile2 import *
 ## Main call of functions ##
 ############################
 
-FirstFile('usersCEScurt.csv')
-SecondFile('Socis_CIC-21_7_2014.csv')
+ZeroFile('Transversal.csv')
+#FirstFile('usersCEScurt.csv')
+#SecondFile('Socis_CIC-21_7_2014.csv')
 
 print("bye!")

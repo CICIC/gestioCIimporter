@@ -1,7 +1,7 @@
 from models import *
 
 membership = WelcomeIcMembership.get(
-            WelcomeIcMembership.ic_cesnum == 'COOP0874')
+            WelcomeIcMembership.ic_cesnum == 'COOP1269')
 
 human = GeneralHuman.get(GeneralHuman.id == membership.human)
 

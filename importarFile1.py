@@ -23,19 +23,27 @@ from models import GeneralAddress, GeneralProject
 # create loggers
 logger = logging.getLogger('File1')
 logger.setLevel(logging.DEBUG)
+loggerLocked = logging.getLogger('File1.Review')
+loggerLocked.setLevel(logging.DEBUG)
 # create file handler which logs even debug messages
 fh = logging.FileHandler('bitacora-file1.log')
 fh.setLevel(logging.DEBUG)
+fhLocked = logging.FileHandler('bitacora-report.log')
+fhLocked.setLevel(logging.DEBUG)
 # create console handler with a higher log level
 ch = logging.StreamHandler()
 ch.setLevel(logging.INFO)
 # create formatter and add it to the handlers
 formatter = logging.Formatter('%(name)s %(levelname)s: %(message)s')
+formatterLocked = logging.Formatter('%(message)s')
 fh.setFormatter(formatter)
+fhLocked.setFormatter(formatterLocked)
 ch.setFormatter(formatter)
 # add the handlers to the logger
 logger.addHandler(fh)
 logger.addHandler(ch)
+loggerLocked.addHandler(fhLocked)
+#loggerLocked.addHandler(ch)
 
 #################
 ## Global vars ##
@@ -152,7 +160,7 @@ def file1_UpdateHuman(row, humanID):
     logger.debug("Updated human:%s", hum.id)
 
 
-def file1_CreateAddress(row, human):
+def file1_CreateAddress(row, humanID):
     "Process the CSV data related to Address class and saves to the database"
 
     # create address
@@ -161,7 +169,7 @@ def file1_CreateAddress(row, human):
     logger.debug("create address: %s", address.id)
     # create relation between person and address
     GeneralRelHumanAddresses.create(
-        address=address.id, human=human.id, main_address=1)
+        address=address.id, human=humanID, main_address=1)
 
 
 def file1_UpdateAddress(row, humanID):
@@ -191,7 +199,7 @@ def file1_CreatePerson(row):
     # create human
     human = file1_CreateHuman(row)
     #create address
-    file1_CreateAddress(row, human)
+    file1_CreateAddress(row, human.id)
     # create person
     GeneralPerson.create(human=human.id, surnames=row[3])
     # create record of the membership
@@ -219,11 +227,11 @@ def file1_UpdatePerson(row, humanID):
 
 def file1_CreateProject(row):
     "Process the data related to Project Membership and saves to the database"
-
+    # TODO: create reference person
     # create human
     human = file1_CreateHuman(row)
     # create address
-    file1_CreateAddress(row, human)
+    file1_CreateAddress(row, human.id)
 
     # define membership type
     record_type = SociCoopCol
@@ -277,6 +285,12 @@ def file1_isCollectiveProject(pt):
         or pt == 'reb' or pt == 'pub'
 
 
+def file1_UpdateStatus(row):
+    if row[18] == '-1':
+        # status "locked"
+        loggerLocked.info("%s bloquejat",row[0])
+
+
 def file1_ProcessRow(row):
     "Gets a row from the CSV and stores it's data to the database"
 
@@ -292,6 +306,7 @@ def file1_ProcessRow(row):
             # update the person data
             logger.info("Updating Person: %s", pm.person.human)
             file1_UpdatePerson(row, pm.person.human)
+            file1_UpdateStatus(row)
         except DoesNotExist:
             try:
                 projectMem = WelcomeIcProjectMembership.get(
@@ -299,6 +314,7 @@ def file1_ProcessRow(row):
                 logger.info("Updating Project: %s", projectMem.project.human)
                 # update project data
                 file1_UpdateProject(row, projectMem.project.human)
+                file1_UpdateStatus(row)
             except DoesNotExist:
                 logger.debug("project of %s not found database inconsistent",
                              row[0])
@@ -311,9 +327,11 @@ def file1_ProcessRow(row):
             # create person
             file1_CreatePerson(row)
             logger.info("Added new member: %s", row[0])
+            file1_UpdateStatus(row)
         elif file1_isCollectiveProject(row[1]):
             # create project
             file1_CreateProject(row)
+            file1_UpdateStatus(row)
             logger.info("Added new project: %s", row[0])
         else:
             logger.debug("avoid %s -> type: %s", row[0], row[1])
@@ -321,10 +339,11 @@ def file1_ProcessRow(row):
 
 def FirstFile(filename):
     "Gets the first file to read and process it"
-    with open(filename, 'rb') as f:
-        dialect = csv.Sniffer().sniff(f.read(1024))
-        f.seek(0)
-        reader = csv.reader(f, dialect)
+    
+    loggerLocked.info("Llistat usuaris CES Bloquejats")
+    
+    with open(filename, 'rb') as csvfile:
+        reader = csv.reader(csvfile, delimiter=';', quotechar='"')
         try:
             for row in reader:
                 file1_cleanRowProcess(row)

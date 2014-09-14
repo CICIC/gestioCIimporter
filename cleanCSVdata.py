@@ -3,17 +3,33 @@ import re
 import logging
 
 
+#def cleanDate(date):
+#    "Clean date format from yyyy[/]mm[/]dd hh:mm:ss"
+#
+#    if date != '':
+#        date = date.split(' ')  # get yyyy/mm/dd
+#        date = date[0].replace('/', '-')
+#        try:
+#            date = re.match(r'[0-9]{4}-[01]?[0-9]{1}-[0-3]{1}[0-9]{1}',
+#                date).group(0)
+#        except AttributeError:
+#            date = ''
+#    return date
+
 def cleanDate(date):
     "Clean date format from yyyy[/]mm[/]dd hh:mm:ss"
-
+    
+    date = date.replace(' ', '')
     if date != '':
-        date = date.split(' ')  # get yyyy/mm/dd
-        date = date[0].replace('/', '-')
         try:
-            date = re.match(r'[0-9]{4}-[01]?[0-9]{1}-[0-3]{1}[0-9]{1}',
-                date).group(0)
+            query = r'([0-9]|0[1-9]|[12][0-9]|3[01])/([0-9]|0[1-9]|1[012])/(19|20)[0-9][0-9]'
+            date = re.match(query, date).group(0)
+            date = date.split('/')
+            date = date[2] + '-' + date[1] + '-' + date[0]
         except AttributeError:
-            date = ''
+            date = None
+    else:
+        date = None
     return date
 
 
@@ -28,15 +44,15 @@ def cleanPhone(phone):
         phone = phone[4:]
     phone = phone[0:9]
     if not re.match(r"[0-9]{9}", phone) and len(phone) > 9:
-        phone = ''
+        phone = None
     return phone
 
 
 def cleanPostalcode(postalcode):
-    if re.search(r"^[0-9]{4}", postalcode) and len(postalcode) == 4:
+    if re.match(r"[0-9]{4}", postalcode) and len(postalcode) == 4:
         postalcode = '0' + postalcode
-    if (not re.search(r"^[0-9]{5}", postalcode)) or len(postalcode) != 5:
-        postalcode = ''
+    if (not re.match(r"[0-9]{5}", postalcode)) or len(postalcode) != 5:
+        postalcode = None
     return postalcode
 
 
@@ -45,7 +61,7 @@ def cleanCOOPnumber(coopnumber):
     if re.match(r"COOP[0-9]{4}",coopnumber):
         coopnumber = coopnumber[0:8]
     else:
-        coopnumber = ''
+        coopnumber = None
     return coopnumber
 
 
@@ -59,17 +75,16 @@ def cleanIDcard(idcard):
     return idcard
 
 def cleanFloat(num):
-    "Convert swap '.' and ',' (ES format to US)"
+    "Convert 0.000,00 -> 0000.00" 
 
-    num = num.replace(',','dot')
-    num = num.replace('.',',')
-    num = num.replace('dot','.')
+    num = num.replace('.','')
+    num = num.replace(',','.')
     if num == '':
         num = 0
     try:
         num = float(num)
     except ValueError:
-        print "Not a float: " + num
+        print "Not a float:", num
         num = 0.0
     return num
 
@@ -82,7 +97,7 @@ def cleanInteger(num):
     try:
         num = int(num)
     except ValueError:
-        print "Not an integer: " + num
+        print "Not an integer:", num
         num=0
     return num
     
@@ -93,7 +108,7 @@ def cleanCooperative(coop):
     if coop == 'i':
         coop = 'I'
     if coop != 'X' or coop != 'I':
-        coop = ''
+        coop = None
     return coop
 
 
