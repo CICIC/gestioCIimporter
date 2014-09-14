@@ -499,7 +499,7 @@ class WelcomeIcSelfEmployed(BaseModel):
     end_date = DateField(null=True)
     ic_membership = ForeignKeyField(
         db_column='ic_membership_id', rel_model=WelcomeIcMembership,
-        related_name='own_membership')
+            related_name='own_membership') # DO NOT REMOVE ON UPDATE OR WILL CRASH!
     ic_record = ForeignKeyField(
         db_column='ic_record_id', primary_key=True, rel_model=WelcomeIcRecord)
     join_date = DateField(null=True)
@@ -524,6 +524,16 @@ class WelcomeIcSelfEmployedRelFees(BaseModel):
 
     class Meta:
         db_table = 'Welcome_ic_self_employed_rel_fees'
+
+
+class WelcomeIcStallholder(BaseModel):
+    ic_self_employed = ForeignKeyField(
+        db_column='ic_self_employed_id', primary_key=True,
+        rel_model=WelcomeIcSelfEmployed)
+    tent_type = CharField(max_length=5, null=True)
+
+    class Meta:
+        db_table = 'Welcome_ic_stallholder'
 
 
 class AuthUser(BaseModel):
