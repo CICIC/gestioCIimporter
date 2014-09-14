@@ -26,7 +26,6 @@ if [ $input != "q" ]
     mysql -u $user -p$password $dbName < $input
 fi
 
-mysql -u $user -p$password $dbName < bdgestiociProduccio.sql 
-mysql -u $user -p$password $dbName < startSQLvalues.sql
+#mysql -u $user -p$password $dbName < bdgestiociProduccio.sql 
 echo "end of the script"
 rm *.log
