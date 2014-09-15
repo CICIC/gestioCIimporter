@@ -15,7 +15,7 @@ from models import InvoicesSoci, GeneralRelHumanPersons, WelcomeIcSelfEmployed
 from models import PublicFormRegistrationprofile, GeneralRecord, GeneralType
 from models import GeneralAccountbank, WelcomeIcType, GeneralUnit
 from models import GeneralRelation, WelcomeFee, WelcomeIcSelfEmployedRelFees
-from models import WelcomeIcStallholder
+from models import WelcomeIcStallholder, InvoicesSalesMovement
 
 
 ###################
@@ -24,15 +24,16 @@ from models import WelcomeIcStallholder
 
 # create loggers
 log0 = logging.getLogger('File0')
-log0.setLevel(logging.DEBUG)
+log0.setLevel(logging.INFO)
 # create file handler which logs even debug messages
 fh0 = logging.FileHandler('bitacora-file0.log')
-fh0.setLevel(logging.DEBUG)
+fh0.setLevel(logging.INFO)
 # create console handler with a higher log level
 ch0 = logging.StreamHandler()
 ch0.setLevel(logging.WARNING)
 # create formatter and add it to the handlers
-format0 = logging.Formatter('%(name)s: %(levelname)s: %(message)s')
+#format0 = logging.Formatter('%(name)s: %(levelname)s: %(message)s')
+format0 = logging.Formatter('%(levelname)s: %(message)s')
 fh0.setFormatter(format0)
 ch0.setFormatter(format0)
 # add the handlers to the logger
@@ -131,7 +132,7 @@ rel_persRef = loadGeneralRelation("reference")
 recBankAccount = loadGeneralType("AccountBank")
 
 #unit
-unitEuro = loadGeneralUnitName("Euro")
+unitEUR = loadGeneralUnitName("Euro")
 unitECO = loadGeneralUnitName("EcoCoop")
 unitHora = loadGeneralUnitName("Hora")
 
@@ -141,7 +142,8 @@ paymentFlow = loadWelcomeTypeName("pagament en Metàl·lic")
 #Fees
 advancedFee = loadWelcomeType("advanced_fee")
 
-
+#try to keep the original row each loop
+originalrow = []
 ############################################
 ## Zerofile: UsersOld database and Transv ##
 ############################################
@@ -214,8 +216,6 @@ def file0_CreateUser(row):
     password = u"pbkdf2_sha256$12000$k93h7VmpEGlY$EirohX1jqCOY3W5KOS9De8UWEizyW9cJ+fLh5bGxGKU="
     last_login, date_joined = "2014-09-11", "2014-09-11"
     is_superuser, is_staff, is_active = 0, 0, 1
-    username, first_name, last_name = '', "noname", "nosurnames"
-    email = "noemail@cooperativa.cat"
     
     # first check into the old_auth_user table
     try:
@@ -236,7 +236,7 @@ def file0_CreateUser(row):
         last_name = row[12]
         email = row[5]
     if username == '' and email != '':
-        log0.warning("No COOP, creating user with email")
+        log0.warning("Sense COOP, creant usuari amb l'email")
         username = row[5]
     if username != '':
         newuser = AuthUser.create(date_joined = date_joined, email = email,
@@ -244,9 +244,8 @@ def file0_CreateUser(row):
             is_staff = is_staff, is_superuser = is_superuser,
             last_login = last_login, last_name = last_name,
             password = password, username = username)
-        log0.info("new user created %s", newuser.id)   
     else:
-        log0.Error("NewUser %s not created, cause no COOP nor email", username)
+        log0.Error("Nou usuari %s no creat, no COOP nor email")
     return newuser
 
 
@@ -342,21 +341,37 @@ def file0_addFeeMovements(row, selfemployed):
     trimestre = ['1r','2n','3r','4t']
     pointer = [141,156,171,186]
     member = selfemployed.ic_record
+    # who manage de sale movement
+    manage_gestioEco = 1 # ECOs managed by gestioEco
+    manage_members = 0 #EURs managed by members
     for quarter in trimestre:
         i = 0
-        concept = "Quota " + quarter + " trimestre"
+        concept = "Quota " + quarter + " trimestre. " + row[pointer[i]+6]
         execution_date = row[pointer[i]+5]
         valueEUR = row[pointer[i]]
         valueECO = row[pointer[i]+1]
-#    InvoicesSalesMovement.create(ic_membership=selfemployed.ic_record,
-#        concept=concept, execution_date=execution_date,
-#        value=valueEUR, currency=?, planned_date=execution_date,
-#        who_manage=?)
-        if (valueEUR != 0.0 and valueEUR != None and valueECO != 0) or\
-            (valueECO != 0.0 and valueECO != None and valueECO != 0):
-            log0.debug("%s: %s\n%s - EUR:%s ECO:%s",
-                selfemployed.ic_membership.id, concept, execution_date,
-                valueEUR, valueECO)
+        if valueEUR != 0.0 and valueEUR != None and valueEUR != 0:
+            if execution_date != None and execution_date != '':
+                InvoicesSalesMovement.create(
+                    ic_membership=selfemployed.ic_membership.ic_record.id,
+                    concept=concept, execution_date=execution_date,
+                    value=valueEUR, currency=unitEUR, planned_date=execution_date,
+                    who_manage=manage_members)
+            else:
+                log0.warning("Falta data de pagament de:")
+                log0.warning("%s: %s\n%s - EUR:%s", row[3], concept,
+                    execution_date, valueEUR)
+        if valueECO != 0.0 and valueECO != None and valueECO != 0:
+            if execution_date != None and execution_date != '':
+                InvoicesSalesMovement.create(
+                    ic_membership=selfemployed.ic_membership.ic_record.id,
+                    concept=concept, execution_date=execution_date,
+                    value=valueEUR, currency=unitECO, planned_date=execution_date,
+                    who_manage=manage_gestioEco)
+            else:
+                log0.warning("Falta data de pagament de:")
+                log0.warning("%s: %s\n%s - ECO:%s", row[3], concept,
+                    execution_date, valueECO)
 
 
 def file0_addTaxMovements(row, selfemployed):
@@ -404,10 +419,7 @@ def file0_CreateSelfEmployed(row, membership):
                 deadline_date=row[0], human=membership.human.id,
                 ic_record=recFee, issue_date=row[0], payment_date=row[0],
                 payment_type=paymentFlow, project=cicProjectID,
-                unit=unitEuro)
-            log0.warning("Revisar que s'hagi pagat en EUR:%s")
-            log0.warning("COOP:%s, import: %s", soci.coop_number,
-                soci.pretax)
+                unit=unitEUR)
     except DoesNotExist:
         pass
     #bank account data
@@ -422,7 +434,7 @@ def file0_CreateSelfEmployed(row, membership):
             tarjeta=1
 
         bankAccount = GeneralAccountbank.create(record=recBank,
-            human=membership.human.id, unit=unitEuro, bankcard=tarjeta)
+            human=membership.human.id, unit=unitEUR, bankcard=tarjeta)
     # has end date: status baixa
     # TODO: waiting status to do something more
     end_date = row[1]
@@ -437,7 +449,7 @@ def file0_CreateSelfEmployed(row, membership):
     selfe = WelcomeIcSelfEmployed.create(ic_record=record.id,
         ic_membership=membership.ic_record.id, join_date=row[0],
         end_date=end_date, organic=0, rel_accountBank=bankAccount,
-        assigned_vat=IVAassignat, mentor_comment=row[18])
+        assigned_vat=IVAassignat, mentor_comment=row[18], extra_days=extraD)
     #if stallholder
     WelcomeIcStallholder.create(
         ic_self_employed=selfe.ic_record, tent_type=None)
@@ -446,7 +458,7 @@ def file0_CreateSelfEmployed(row, membership):
         WelcomeIcSelfEmployedRelFees.create(
         ic_self_employed=selfe.ic_record, fee=fee.ic_record)
     
-    # TODO: Quotes Trim
+    # Quotes Trim
     file0_addFeeMovements(row,selfe)
     # TODO: IVAS Trim
     file0_addTaxMovements(row,selfe)
@@ -518,9 +530,9 @@ def file0_CreateMembership(row, user):
         # values to return
         beingID = refPers.id, human.id
     else:
-        log0.warning('Project %s, email:%s, type unknown: %s', row[3],
+        log0.warning('Projecte %s, email:%s, Tipus desconegut (Ind/Col...): %s', row[3],
             row[5], row[14].decode('ascii', 'ignore'))
-        # TODO: something...
+        log0.warning("name: %s surnames: %s", row[11], row[12])
     return beingID, recType
     
 
@@ -536,11 +548,6 @@ def file0_NewUser(row):
         except IntegrityError as e:
             log0.warning('exists user %s in the public_form', row[3])
             log0.warning(e)
-            pdb.set_trace()
-    else:
-        log0.warning("No info about membership type, personal info:")
-        log0.warning("name: %s surnames: %s", row[11], row[12])
-        log0.warning("amanija!")
 
 
 def file0_ProcessRow(row):
@@ -558,17 +565,18 @@ def file0_ProcessRow(row):
                         #create igual
                         file0_NewUser(row)
                     else:
-                        log0.warning("found a user with email:%s",row[5])
-                        log0.warning("diferent users same email?")
+                        log0.warning("Ja hi ha un  usuari amb email:%s",row[5])
+                        log0.warning("diferents usuaris, mateix email?")
  
                 except DoesNotExist:
                     file0_NewUser(row)
     else:
         if row[5] == None or row[5] == '':
-            log0.warning("NO COOP nor email, name: %s",
+            log0.warning("Sense COOP ni email, nom: %s",
                 (row[11] + ' ' + row[12]).decode('ascii','ignore'))
         else:
-            log0.warning("probably Status='Pendent'")
+            log0.warning("És un 'Pendent'? %s",row[5])
+            # TODO: afegir alguna cosa?
 
 def ZeroFile(filename):
     "Gets the before the first file to read and process it"
@@ -578,6 +586,7 @@ def ZeroFile(filename):
         try:
             contador = 1
             for row in reader:
+                originalrow = list(row)
                 log0.info('row: %d', contador)
                 file0_cleanRowProcess(row)
                 file0_ProcessRow(row)

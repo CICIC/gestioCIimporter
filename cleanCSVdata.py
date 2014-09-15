@@ -22,9 +22,11 @@ def cleanDate(date):
     date = date.replace(' ', '')
     if date != '':
         try:
-            query = r'([0-9]|0[1-9]|[12][0-9]|3[01])/([0-9]|0[1-9]|1[012])/(19|20)[0-9][0-9]'
+            query = r'([0-9]|0[1-9]|[12][0-9]|3[01])/([0-9]|0[1-9]|1[012])/((19|20)[0-9][0-9]|1[0-9])'
             date = re.match(query, date).group(0)
             date = date.split('/')
+            if len(date[2])==2:
+                date[2] = '20' + date[2]
             date = date[2] + '-' + date[1] + '-' + date[0]
         except AttributeError:
             date = None

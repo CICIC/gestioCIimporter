@@ -277,9 +277,24 @@ class InvoicesSoci(BaseModel):
     extra_days = IntegerField()
     pretax = DecimalField(db_column='preTAX')
     user = ForeignKeyField(db_column='user_id', rel_model=OldAuthUser)
-
+    
     class Meta:
         db_table = 'Invoices_soci'
+
+class GeneralProject(BaseModel):
+    ecommerce = IntegerField()
+    email2 = CharField(max_length=75)
+    human = PrimaryKeyField(db_column='human_id')
+    level = IntegerField()
+    lft = IntegerField()
+    parent = IntegerField(db_column='parent_id', null=True)
+    project_type = IntegerField(db_column='project_type_id', null=True)
+    rght = IntegerField()
+    socialweb = CharField(max_length=100)
+    tree = IntegerField(db_column='tree_id')
+
+    class Meta:
+        db_table = 'General_project'
 
 
 class WelcomeIcType(BaseModel):
@@ -294,14 +309,6 @@ class WelcomeIcType(BaseModel):
 
     class Meta:
         db_table = 'Welcome_ic_type'
-
-
-class WelcomeIcDocumentType(BaseModel):
-    record_type = ForeignKeyField(
-        db_column='record_type_id', primary_key=True, rel_model=WelcomeIcType)
-
-    class Meta:
-        db_table = 'Welcome_ic_document_type'
 
 
 class WelcomeIcRecordType(BaseModel):
@@ -320,6 +327,84 @@ class WelcomeIcRecord(BaseModel):
 
     class Meta:
         db_table = 'Welcome_ic_record'
+
+
+class WelcomePaymentType(BaseModel):
+    ic_type = ForeignKeyField(
+        db_column='ic_type_id', primary_key=True, rel_model=WelcomeIcType)
+
+    class Meta:
+        db_table = 'Welcome_payment_type'
+
+
+class WelcomeFee(BaseModel):
+    amount = DecimalField()
+    deadline_date = DateField(null=True)
+    human = ForeignKeyField(db_column='human_id', rel_model=GeneralHuman)
+    ic_record = ForeignKeyField(
+        db_column='ic_record_id', primary_key=True, rel_model=WelcomeIcRecord)
+    issue_date = DateField(null=True)
+    payment_date = DateField(null=True)
+    payment_type = ForeignKeyField(
+        db_column='payment_type_id', null=True, rel_model=WelcomePaymentType)
+    project = ForeignKeyField(db_column='project_id', rel_model=GeneralProject)
+    rel_account = ForeignKeyField(
+        db_column='rel_account_id', null=True, rel_model=GeneralRecord)
+    unit = ForeignKeyField(db_column='unit_id', rel_model=GeneralUnit)
+
+    class Meta:
+        db_table = 'Welcome_fee'
+
+
+class WelcomeIcMembership(BaseModel):
+    contribution = ForeignKeyField(
+        db_column='contribution_id', null=True, rel_model=GeneralRelation)
+    end_date = DateField(null=True)
+    human = ForeignKeyField(db_column='human_id', rel_model=GeneralHuman)
+    ic_cesnum = CharField(db_column='ic_CESnum', max_length=8, null=True)
+    ic_company = ForeignKeyField(
+        db_column='ic_company_id', null=True, rel_model=GeneralCompany)
+    ic_project = ForeignKeyField(
+        db_column='ic_project_id', rel_model=GeneralProject)
+    ic_record = ForeignKeyField(
+        db_column='ic_record_id', primary_key=True, rel_model=WelcomeIcRecord)
+    join_date = DateField(null=True)
+    join_fee = ForeignKeyField(
+        db_column='join_fee_id', null=True, rel_model=WelcomeFee)
+    virtual_market = IntegerField()
+
+    class Meta:
+        db_table = 'Welcome_ic_membership'
+
+
+class InvoicesCurrencies(BaseModel):
+    name = CharField(max_length=20)
+
+    class Meta:
+        db_table = 'Invoices_currencies'
+
+
+class InvoicesSalesMovement(BaseModel):
+    concept = CharField(max_length=200)
+    currency = ForeignKeyField(
+        db_column='currency_id', rel_model=InvoicesCurrencies)
+    execution_date = DateField(null=True)
+    ic_membership = ForeignKeyField(
+        db_column='ic_membership_id', rel_model=WelcomeIcMembership)
+    planned_date = DateField()
+    value = DecimalField()
+    who_manage = IntegerField()
+
+    class Meta:
+        db_table = 'Invoices_sales_movement'
+
+
+class WelcomeIcDocumentType(BaseModel):
+    record_type = ForeignKeyField(
+        db_column='record_type_id', primary_key=True, rel_model=WelcomeIcType)
+
+    class Meta:
+        db_table = 'Welcome_ic_document_type'
 
 
 class WelcomeIcDocument(BaseModel):
@@ -382,49 +467,6 @@ class WelcomeIcLaborContract(BaseModel):
         db_table = 'Welcome_ic_labor_contract'
 
 
-class WelcomePaymentType(BaseModel):
-    ic_type = ForeignKeyField(
-        db_column='ic_type_id', primary_key=True, rel_model=WelcomeIcType)
-
-    class Meta:
-        db_table = 'Welcome_payment_type'
-
-
-class GeneralProject(BaseModel):
-    ecommerce = IntegerField()
-    email2 = CharField(max_length=75)
-    human = PrimaryKeyField(db_column='human_id')
-    level = IntegerField()
-    lft = IntegerField()
-    parent = IntegerField(db_column='parent_id', null=True)
-    project_type = IntegerField(db_column='project_type_id', null=True)
-    rght = IntegerField()
-    socialweb = CharField(max_length=100)
-    tree = IntegerField(db_column='tree_id')
-
-    class Meta:
-        db_table = 'General_project'
-
-
-class WelcomeFee(BaseModel):
-    amount = DecimalField()
-    deadline_date = DateField(null=True)
-    human = ForeignKeyField(db_column='human_id', rel_model=GeneralHuman)
-    ic_record = ForeignKeyField(
-        db_column='ic_record_id', primary_key=True, rel_model=WelcomeIcRecord)
-    issue_date = DateField(null=True)
-    payment_date = DateField(null=True)
-    payment_type = ForeignKeyField(
-        db_column='payment_type_id', null=True, rel_model=WelcomePaymentType)
-    project = ForeignKeyField(db_column='project_id', rel_model=GeneralProject)
-    rel_account = ForeignKeyField(
-        db_column='rel_account_id', null=True, rel_model=GeneralRecord)
-    unit = ForeignKeyField(db_column='unit_id', rel_model=GeneralUnit)
-
-    class Meta:
-        db_table = 'Welcome_fee'
-
-
 class WelcomeIcLaborContractRelFees(BaseModel):
     fee = ForeignKeyField(db_column='fee_id', rel_model=WelcomeFee)
     ic_labor_contract = ForeignKeyField(
@@ -448,27 +490,6 @@ class WelcomeIcLicence(BaseModel):
 
     class Meta:
         db_table = 'Welcome_ic_licence'
-
-
-class WelcomeIcMembership(BaseModel):
-    contribution = ForeignKeyField(
-        db_column='contribution_id', null=True, rel_model=GeneralRelation)
-    end_date = DateField(null=True)
-    human = ForeignKeyField(db_column='human_id', rel_model=GeneralHuman)
-    ic_cesnum = CharField(db_column='ic_CESnum', max_length=8, null=True)
-    ic_company = ForeignKeyField(
-        db_column='ic_company_id', null=True, rel_model=GeneralCompany)
-    ic_project = ForeignKeyField(
-        db_column='ic_project_id', rel_model=GeneralProject)
-    ic_record = ForeignKeyField(
-        db_column='ic_record_id', primary_key=True, rel_model=WelcomeIcRecord)
-    join_date = DateField(null=True)
-    join_fee = ForeignKeyField(
-        db_column='join_fee_id', null=True, rel_model=WelcomeFee)
-    virtual_market = IntegerField()
-
-    class Meta:
-        db_table = 'Welcome_ic_membership'
 
 
 class WelcomeIcPersonMembership(BaseModel):
@@ -497,6 +518,7 @@ class WelcomeIcProjectMembership(BaseModel):
 class WelcomeIcSelfEmployed(BaseModel):
     assigned_vat = DecimalField(null=True)
     end_date = DateField(null=True)
+    extra_days = IntegerField(null=True)
     ic_membership = ForeignKeyField(
         db_column='ic_membership_id', rel_model=WelcomeIcMembership,
             related_name='own_membership') # DO NOT REMOVE ON UPDATE OR WILL CRASH!
@@ -506,8 +528,8 @@ class WelcomeIcSelfEmployed(BaseModel):
     last_review_date = DateField(null=True)
     mentor_comment = TextField(null=True)
     mentor_membership = ForeignKeyField(
-        db_column='mentor_membership_id', null=True,
-        rel_model=WelcomeIcMembership, related_name='mentor_membership')
+        db_column='mentor_membership_id', null=True, rel_model=WelcomeIcMembership,
+        related_name='mentor_membership') # DO NOT REMOVE ON UPDATE OR WILL CRASH!
     organic = IntegerField()
     rel_accountbank = ForeignKeyField(
         db_column='rel_accountBank_id', null=True, rel_model=GeneralAccountbank)
