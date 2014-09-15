@@ -15,6 +15,8 @@ from models import InvoicesSoci, GeneralRelHumanPersons, WelcomeIcSelfEmployed
 from models import PublicFormRegistrationprofile, GeneralRecord, GeneralType
 from models import GeneralAccountbank, WelcomeIcType, GeneralUnit
 from models import GeneralRelation, WelcomeFee, WelcomeIcSelfEmployedRelFees
+from models import WelcomeIcStallholder
+
 
 ###################
 ## logger config ##
@@ -270,7 +272,6 @@ def file0_CreateAddress(row, humanID):
     # create address
     address = GeneralAddress.create(name='Adreça principal', p_address=row[7],
         ic_larder=0, postalcode=row[8], town=row[9])
-    log0.debug("create address: %s", address.id)
     # create relation between person and address
     GeneralRelHumanAddresses.create(
         address=address.id, human=humanID, main_address=1)
@@ -335,6 +336,34 @@ def file0_isStallholder(row):
         return True
     return False
 
+def file0_addFeeMovements(row, selfemployed):
+    "function to store the fee movements"
+    
+    trimestre = ['1r','2n','3r','4t']
+    pointer = [141,156,171,186]
+    member = selfemployed.ic_record
+    for quarter in trimestre:
+        i = 0
+        concept = "Quota " + quarter + " trimestre"
+        execution_date = row[pointer[i]+5]
+        valueEUR = row[pointer[i]]
+        valueECO = row[pointer[i]+1]
+#    InvoicesSalesMovement.create(ic_membership=selfemployed.ic_record,
+#        concept=concept, execution_date=execution_date,
+#        value=valueEUR, currency=?, planned_date=execution_date,
+#        who_manage=?)
+        if (valueEUR != 0.0 and valueEUR != None and valueECO != 0) or\
+            (valueECO != 0.0 and valueECO != None and valueECO != 0):
+            log0.debug("%s: %s\n%s - EUR:%s ECO:%s",
+                selfemployed.ic_membership.id, concept, execution_date,
+                valueEUR, valueECO)
+
+
+def file0_addTaxMovements(row, selfemployed):
+    "function to store the tax movements"
+
+    return None
+
 
 def file0_CreateSelfEmployed(row, membership):
     "Store selfemployed data"
@@ -350,7 +379,6 @@ def file0_CreateSelfEmployed(row, membership):
         recType = SociAutoOcupat  
     # crear record
     record = WelcomeIcRecord.create(name=recordName, record_type=recType)
-    #mirar tema compte bancari triodos
     #mirar dades Invoices_soci
     soci = None
     fee = None
@@ -382,7 +410,6 @@ def file0_CreateSelfEmployed(row, membership):
                 soci.pretax)
     except DoesNotExist:
         pass
-    # TODO: waiting the Legal Cooperative field
     #bank account data
     recBank = None
     if row[25] == 'Sí':
@@ -396,10 +423,11 @@ def file0_CreateSelfEmployed(row, membership):
 
         bankAccount = GeneralAccountbank.create(record=recBank,
             human=membership.human.id, unit=unitEuro, bankcard=tarjeta)
+    # has end date: status baixa
+    # TODO: waiting status to do something more
     end_date = row[1]
     if end_date == '':
         end_date = None
-    # TODO: waiting IAEs table
     comment = 'Comentaris Històric\n'
     comment += '-------------------\n'
     comment += row[17] + '\n'
@@ -410,10 +438,20 @@ def file0_CreateSelfEmployed(row, membership):
         ic_membership=membership.ic_record.id, join_date=row[0],
         end_date=end_date, organic=0, rel_accountBank=bankAccount,
         assigned_vat=IVAassignat, mentor_comment=row[18])
-    #if pretax != 0 link the created fee with the membership
+    #if stallholder
+    WelcomeIcStallholder.create(
+        ic_self_employed=selfe.ic_record, tent_type=None)
+    # if pretax != 0 link the created fee with the membership
     if soci != None and fee != None and soci.pretax != 0:
         WelcomeIcSelfEmployedRelFees.create(
         ic_self_employed=selfe.ic_record, fee=fee.ic_record)
+    
+    # TODO: Quotes Trim
+    file0_addFeeMovements(row,selfe)
+    # TODO: IVAS Trim
+    file0_addTaxMovements(row,selfe)
+    # TODO: waiting the Legal Cooperative field
+    # TODO: waiting IAEs table
 
 
 def file0_CreateMembership(row, user):
