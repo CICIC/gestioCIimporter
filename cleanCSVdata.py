@@ -107,7 +107,7 @@ def cleanCooperative(coop):
         coop = 'X'
     if coop == 'i':
         coop = 'I'
-    if coop != 'X' or coop != 'I':
+    if coop != 'X' and coop != 'I':
         coop = None
     return coop
 
