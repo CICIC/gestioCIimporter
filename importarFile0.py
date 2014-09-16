@@ -220,8 +220,10 @@ def file0_CreateUser(row):
     # first check into the old_auth_user table
     try:
         # get all the data from olduser
-        oldusername = row[3].replace("COOP",'')
-        ou = OldAuthUser.get(username = oldusername)
+        oldusername = None
+        if row[3] != None:
+            oldusername = row[3].replace("COOP",'')
+        ou = OldAuthUser.get(OldAuthUser.username == oldusername)
         password = ou.password
         last_login, date_joined = ou.last_login, ou.date_joined
         is_superuser, is_staff = ou.is_superuser, ou.is_staff
@@ -235,10 +237,10 @@ def file0_CreateUser(row):
         first_name = row[11]
         last_name = row[12]
         email = row[5]
-    if username == '' and email != '':
+    if (username == '' or username == None) and email != '':
         log0.warning("Sense COOP, creant usuari amb l'email")
         username = row[5]
-    if username != '':
+    if username != '' and username != None:
         newuser = AuthUser.create(date_joined = date_joined, email = email,
             first_name = first_name, is_active = is_active,
             is_staff = is_staff, is_superuser = is_superuser,
@@ -355,8 +357,8 @@ def file0_addFeeMovements(row, selfemployed):
                 InvoicesSalesMovement.create(
                     ic_membership=selfemployed.ic_membership.ic_record.id,
                     concept=concept, execution_date=execution_date,
-                    value=valueEUR, currency=unitEUR, planned_date=execution_date,
-                    who_manage=manage_members)
+                    value=valueEUR, currency=unitEUR.id,
+                    planned_date=execution_date, who_manage=manage_members)
             else:
                 log0.warning("Falta data de pagament de:")
                 log0.warning("%s: %s\n%s - EUR:%s", row[3], concept,
@@ -366,7 +368,7 @@ def file0_addFeeMovements(row, selfemployed):
                 InvoicesSalesMovement.create(
                     ic_membership=selfemployed.ic_membership.ic_record.id,
                     concept=concept, execution_date=execution_date,
-                    value=valueEUR, currency=unitECO, planned_date=execution_date,
+                    value=valueEUR, currency=unitECO.id, planned_date=execution_date,
                     who_manage=manage_gestioEco)
             else:
                 log0.warning("Falta data de pagament de:")
@@ -387,9 +389,13 @@ def file0_CreateSelfEmployed(row, membership):
     recordName = ''
     recType = ''
     if file0_isStallholder(row):
+        if row[3] == None:
+            row[3] = ''
         recordName = 'Soci Firaire' + row[3]
         recType = SociFiraire
     else:
+        if row[3] == None:
+            row[3] = ''
         recordName = 'Soci Autoocupat' + row[3]
         recType = SociAutoOcupat  
     # crear record
@@ -403,9 +409,14 @@ def file0_CreateSelfEmployed(row, membership):
     coopID = 1
     bankAccount = None
     tarjeta = 0
+    koopnumber = 0
     try:
+        if row[3] == '' or row[3] == None:
+            koopnumber = 0
+        else:
+            koopnumber = int(row[3].replace('COOP',''))
         soci = InvoicesSoci.get(
-            InvoicesSoci.coop_number == row[3].replace('COOP',''))
+            InvoicesSoci.coop_number == koopnumber)
         IVAassignat = soci.iva_assignat
         extraD = soci.extra_days
         # Add advanced fee
@@ -421,7 +432,7 @@ def file0_CreateSelfEmployed(row, membership):
                 payment_type=paymentFlow, project=cicProjectID,
                 unit=unitEUR)
     except DoesNotExist:
-        pass
+        log0.debug("no existeix soci")
     #bank account data
     recBank = None
     if row[25] == 'Sí':
@@ -461,7 +472,7 @@ def file0_CreateSelfEmployed(row, membership):
     # Quotes Trim
     file0_addFeeMovements(row,selfe)
     # TODO: IVAS Trim
-    file0_addTaxMovements(row,selfe)
+    #file0_addTaxMovements(row,selfe)
     # TODO: waiting the Legal Cooperative field
     # TODO: waiting IAEs table
 
@@ -474,9 +485,21 @@ def file0_CreateMembership(row, user):
     recType = None
     if re.search(r'Individual', row[14], re.IGNORECASE):
         # create indiv membership record
-        record = WelcomeIcRecord.create(
-            name="Soci Coop. Individual:"+row[3],
-            record_type=SociCoopInd)
+        if row[3] != None and row[3] != '':
+            record = WelcomeIcRecord.create(
+                name="Soci Coop. Individual:" + row[3],
+                record_type=SociCoopInd)
+        elif row[5] != None and row[5] != '':
+            record = WelcomeIcRecord.create(
+                name="Soci Coop. Individual:" + row[5],
+                record_type=SociCoopInd)
+        else:
+            if row[11] == None: row[11]=''
+            if row[12] == None: row[12]=''
+            record = WelcomeIcRecord.create(
+                name="Soci Coop. Individual:" + row[11] + row[12],
+                record_type=SociCoopInd)
+            
         recType = SociCoopInd
         # create person
         human = file0_CreatePerson(row, user)
@@ -576,8 +599,14 @@ def file0_ProcessRow(row):
                 (row[11] + ' ' + row[12]).decode('ascii','ignore'))
         else:
             log0.warning("És un 'Pendent'? %s",row[5])
-            # TODO: afegir alguna cosa?
+            try:
+                user = AuthUser.get(AuthUser.email == row[5])
+                log0.debug("user 'pendent' ja afegit")
+            except DoesNotExist:
+                log0.debug("user 'pendent' a crear")
+                file0_NewUser(row)
 
+                
 def ZeroFile(filename):
     "Gets the before the first file to read and process it"
     

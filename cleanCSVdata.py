@@ -63,7 +63,7 @@ def cleanCOOPnumber(coopnumber):
     if re.match(r"COOP[0-9]{4}",coopnumber):
         coopnumber = coopnumber[0:8]
     else:
-        coopnumber = None
+        coopnumber = ''
     return coopnumber
 
 
