@@ -3,19 +3,6 @@ import re
 import logging
 
 
-#def cleanDate(date):
-#    "Clean date format from yyyy[/]mm[/]dd hh:mm:ss"
-#
-#    if date != '':
-#        date = date.split(' ')  # get yyyy/mm/dd
-#        date = date[0].replace('/', '-')
-#        try:
-#            date = re.match(r'[0-9]{4}-[01]?[0-9]{1}-[0-3]{1}[0-9]{1}',
-#                date).group(0)
-#        except AttributeError:
-#            date = ''
-#    return date
-
 def cleanDate(date):
     "Clean date format from yyyy[/]mm[/]dd hh:mm:ss"
     
