@@ -15,7 +15,9 @@ from models import InvoicesSoci, GeneralRelHumanPersons, WelcomeIcSelfEmployed
 from models import PublicFormRegistrationprofile, GeneralRecord, GeneralType
 from models import GeneralAccountbank, WelcomeIcType, GeneralUnit
 from models import GeneralRelation, WelcomeFee, WelcomeIcSelfEmployedRelFees
-from models import WelcomeIcStallholder, InvoicesSalesMovement
+from models import WelcomeIcStallholder, InvoicesSalesMovement, GeneralCompany
+from models import WelcomeIcDocument,WelcomeIcInsurance
+from models import WelcomeIcSelfEmployedRelInsurances
 
 
 ###################
@@ -117,13 +119,15 @@ ProjPublic = loadWelcomeTypeName("alta Proj. Públic")
 SociAutoOcupat = loadWelcomeType("iC_Self_Employed")
 SociFiraire = loadWelcomeType("iC_Stallholder")
 
+# cooperative companies
+typeCoopCompany = loadGeneralTypeName("Cooperativa")
+
 # project ID
 cicProjectID = 3  # projecte: CIC
 
 # project type
 collectiveProject_type = loadGeneralTypeName("Cooperatiu Col·lectiu")
 ecoxarxa_type = loadGeneralTypeName("Ecoxarxa")
-
 
 # relation type
 rel_persRef = loadGeneralRelation("reference")
@@ -141,6 +145,10 @@ paymentFlow = loadWelcomeTypeName("pagament en Metàl·lic")
 
 #Fees
 advancedFee = loadWelcomeType("advanced_fee")
+
+#insurance record type
+typeInsurance = loadWelcomeType("iC_Insurance")
+typeInsuranceCompany = loadGeneralTypeName('Asseguradora')
 
 #try to keep the original row each loop
 originalrow = []
@@ -221,7 +229,7 @@ def file0_CreateUser(row):
     try:
         # get all the data from olduser
         oldusername = None
-        if row[3] != None:
+        if not row[3]:
             oldusername = row[3].replace("COOP",'')
         ou = OldAuthUser.get(OldAuthUser.username == oldusername)
         password = ou.password
@@ -237,17 +245,17 @@ def file0_CreateUser(row):
         first_name = row[11]
         last_name = row[12]
         email = row[5]
-    if (username == '' or username == None) and email != '':
+    if not username and email:
         log0.warning("Sense COOP, creant usuari amb l'email")
         username = row[5]
-    if username != '' and username != None:
+    if username:
         newuser = AuthUser.create(date_joined = date_joined, email = email,
             first_name = first_name, is_active = is_active,
             is_staff = is_staff, is_superuser = is_superuser,
             last_login = last_login, last_name = last_name,
             password = password, username = username)
     else:
-        log0.Error("Nou usuari %s no creat, no COOP nor email")
+        log0.Error("Nou usuari %s no creat, ni COOP ni email")
     return newuser
 
 
@@ -298,7 +306,7 @@ def file0_CreateProject(row, user):
     if row[14] == "Ecoxarxa":
         projType = ecoxarxa_type
     GeneralProject.create(human=human.id, project_type=projType,
-        parent=cicProjectID)
+        parent=cicProjectID, description=row[201])
     return human
 
 
@@ -382,6 +390,31 @@ def file0_addTaxMovements(row, selfemployed):
     return None
 
 
+def file0_ImportInsurance(row, selfe):
+    # create: record -> document -> insurance
+    nom = u"Assegurança:" + row[19]
+    rec = WelcomeIcRecord.create(description=row[27], name=nom,
+        record_type=typeInsurance)
+    doc = WelcomeIcDocument.create(ic_record=rec.id, doc_type=typeInsurance)
+    #try to find if the insurance company exists:
+    try:
+        com = GeneralCompany.get(legal_name=row[21])
+    except DoesNotExist:
+        hum = GeneralHuman.create(name=row[21], nickname='', email='',
+            telephone_cell='', telephone_land='', website='')
+        com = GeneralCompany.create(company_type=typeInsuranceCompany,
+            human=hum.id, legal_name=row[21])
+    pd = None
+    if row[24] == '':
+        pd = '2010-01-01'
+    ins = WelcomeIcInsurance.create(company=com, end_date=row[20],
+        ic_document=doc, number=row[23], payed_date=pd, price=row[22],
+        price_unit=unitEUR)
+    WelcomeIcSelfEmployedRelInsurances.create(
+        ic_insurance=ins.ic_document.ic_record.id,
+        ic_self_employed=selfe.ic_record.id)
+
+
 def file0_CreateSelfEmployed(row, membership):
     "Store selfemployed data"
     
@@ -408,12 +441,9 @@ def file0_CreateSelfEmployed(row, membership):
     preTAX = 0
     coopID = 1
     bankAccount = None
-    tarjeta = 0
-    koopnumber = 0
+    koopnumber = -1
     try:
-        if row[3] == '' or row[3] == None:
-            koopnumber = 0
-        else:
+        if row[3]: 
             koopnumber = int(row[3].replace('COOP',''))
         soci = InvoicesSoci.get(
             InvoicesSoci.coop_number == koopnumber)
@@ -431,54 +461,72 @@ def file0_CreateSelfEmployed(row, membership):
                 ic_record=recFee, issue_date=row[0], payment_date=row[0],
                 payment_type=paymentFlow, project=cicProjectID,
                 unit=unitEUR)
+        #bank account data
+        recBank = None
+        if row[25] == 'Sí':
+            # create record
+            recBank = GeneralRecord.create(name='Apoderat Triodos',
+                description=row[27],
+                record_type=recBankAccount)
+            # record type=18
+            tarjeta = 0
+            if row[26] == 'Sí':
+                tarjeta=1
+            bankAccount = GeneralAccountbank.create(record=recBank,
+                human=membership.human.id, unit=unitEUR, bankcard=tarjeta)
+        # has end date: status baixa
+        # TODO: waiting status to do something more
+        comment = 'Comentaris Històric\n'
+        comment += '-------------------\n'
+        comment += row[17] + '\n'
+        comment += 'Comentaris IVA assignat\n'
+        comment += '-----------------------\n'
+        comment += row[18] + '\n'
+        selfe = WelcomeIcSelfEmployed.create(ic_record=record.id,
+            ic_membership=membership.ic_record.id, join_date=row[0],
+            end_date=row[0], organic=0, rel_accountBank=bankAccount,
+            assigned_vat=IVAassignat, mentor_comment=row[18], extra_days=extraD)
+        if file0_isStallholder(row):
+            WelcomeIcStallholder.create(
+                ic_self_employed=selfe.ic_record, tent_type=None)
+        # if pretax != 0 link the created fee with the membership
+        if soci and fee and soci.pretax != 0:
+            WelcomeIcSelfEmployedRelFees.create(
+            ic_self_employed=selfe.ic_record, fee=fee.ic_record)
+        # Quotes Trim
+        file0_addFeeMovements(row, selfe)
+        # TODO: IVAS Trim
+        #file0_addTaxMovements(row,selfe)
+        # TODO: waiting IAEs table
+        # Assegurances
+        if row[21] != '':
+            file0_ImportInsurance(row, selfe)
+        elif row[19] or row[22]:
+            log0.warning("revisar assegurança al transversal: %s", row[3])
+        # TODO: Contractes (lloguer...)
+        # TODO: Contracte laboral
+
     except DoesNotExist:
         log0.debug("no existeix soci")
-    #bank account data
-    recBank = None
-    if row[25] == 'Sí':
-        # create record
-        recBank = GeneralRecord.create(name='Apoderat Triodos',
-            description=row[27],
-            record_type=recBankAccount)
-        # record type=18
-        if row[26] == 'Sí':
-            tarjeta=1
 
-        bankAccount = GeneralAccountbank.create(record=recBank,
-            human=membership.human.id, unit=unitEUR, bankcard=tarjeta)
-    # has end date: status baixa
-    # TODO: waiting status to do something more
-    end_date = row[1]
-    if end_date == '':
-        end_date = None
-    comment = 'Comentaris Històric\n'
-    comment += '-------------------\n'
-    comment += row[17] + '\n'
-    comment += 'Comentaris IVA assignat\n'
-    comment += '-----------------------\n'
-    comment += row[18] + '\n'
-    selfe = WelcomeIcSelfEmployed.create(ic_record=record.id,
-        ic_membership=membership.ic_record.id, join_date=row[0],
-        end_date=end_date, organic=0, rel_accountBank=bankAccount,
-        assigned_vat=IVAassignat, mentor_comment=row[18], extra_days=extraD)
-    #if stallholder
-    WelcomeIcStallholder.create(
-        ic_self_employed=selfe.ic_record, tent_type=None)
-    # if pretax != 0 link the created fee with the membership
-    if soci != None and fee != None and soci.pretax != 0:
-        WelcomeIcSelfEmployedRelFees.create(
-        ic_self_employed=selfe.ic_record, fee=fee.ic_record)
-    
-    # Quotes Trim
-    file0_addFeeMovements(row,selfe)
-    # TODO: IVAS Trim
-    #file0_addTaxMovements(row,selfe)
-    # TODO: waiting the Legal Cooperative field
-    # TODO: waiting IAEs table
+def file0_getCooperative(row):
+    legal = 'Xarxa Integral de Professionals i Usuaries SCCL'
+    if row[4] == 'I':
+        legal = 'Interprofessionals SCCL'
+    com = None
+    try:
+        com = GeneralCompany.get(legal_name=legal)
+    except DoesNotExist:
+        hum = GeneralHuman.create(name='', nickname='', email='',
+            telephone_cell='', telephone_land='', website='')
+        com = GeneralCompany.create(company_type=typeCoopCompany,
+            human=hum.id,legal_name=legal)
+    return com
 
 
 def file0_CreateMembership(row, user):
     "Create the data structure to store a new member"
+    
     #beingID tuple with the 0:personID, 1:projectID
     beingID = None, None
 
@@ -499,16 +547,17 @@ def file0_CreateMembership(row, user):
             record = WelcomeIcRecord.create(
                 name="Soci Coop. Individual:" + row[11] + row[12],
                 record_type=SociCoopInd)
-            
         recType = SociCoopInd
         # create person
         human = file0_CreatePerson(row, user)
         # add address
         file0_CreateAddress(row, human.id)
+        #get cooperative
+        com = file0_getCooperative(row)
         # create membership
         membership = WelcomeIcMembership.create(human=human.id,
-            ic_project=cicProjectID, ic_record=record.id,
-            join_date=row[0], ic_cesnum=row[3])
+            ic_company=com.id, ic_project=cicProjectID, ic_record=record.id,
+            join_date=row[0], end_date=row[1], ic_cesnum=row[3])
         # link person to membership
         WelcomeIcPersonMembership.create(ic_membership=record.id,
             person=human.id)
@@ -541,9 +590,11 @@ def file0_CreateMembership(row, user):
         # link ref pers to project
         GeneralRelHumanPersons.create(human=human.id,
             person=refPers.id, relation=rel_persRef)
+        #get cooperative
+        com = file0_getCooperative(row)
         # create membership
         membership = WelcomeIcMembership.create(human=human.id,
-            ic_project=cicProjectID, ic_record=record.id,
+            ic_company=com.id, ic_project=cicProjectID, ic_record=record.id,
             join_date=row[0], end_date=row[1], ic_cesnum=row[3])
         # link project to membership
         WelcomeIcProjectMembership.create(
@@ -553,8 +604,8 @@ def file0_CreateMembership(row, user):
         # values to return
         beingID = refPers.id, human.id
     else:
-        log0.warning('Projecte %s, email:%s, Tipus desconegut (Ind/Col...): %s', row[3],
-            row[5], row[14].decode('ascii', 'ignore'))
+        log0.warning('Projecte %s, email:%s, Tipus desconegut (Ind/Col...): %s',
+            row[3], row[5], row[14].decode('ascii', 'ignore'))
         log0.warning("name: %s surnames: %s", row[11], row[12])
     return beingID, recType
     
@@ -576,34 +627,34 @@ def file0_NewUser(row):
 def file0_ProcessRow(row):
     "Gets a row from the CSV and stores it's data to the database"
     user = None
-    if row[3] != None and row[3] != '':
+    if row[3]:
         #soci has coop
         try:
             user = AuthUser.get(AuthUser.username == row[3])
+            # TODO: aquí es podria updatejar l'usuari!!
+            log0.debug("actualitzar usuari")
         except DoesNotExist:
-            if row[5] != None and row[5] != '':
+            if row[5]:
                 try:
                     user = AuthUser.get(AuthUser.email == row[5])
-                    if user.username != row[3]:
-                        #create igual
+                    if user.username != row[5]:
                         file0_NewUser(row)
                     else:
-                        log0.warning("Ja hi ha un  usuari amb email:%s",row[5])
-                        log0.warning("diferents usuaris, mateix email?")
- 
+                        # TODO: actualitzar usuari
+                        log0.debug("actualitzar usuari")
                 except DoesNotExist:
                     file0_NewUser(row)
     else:
-        if row[5] == None or row[5] == '':
+        if not row[5]:
             log0.warning("Sense COOP ni email, nom: %s",
                 (row[11] + ' ' + row[12]).decode('ascii','ignore'))
         else:
             log0.warning("És un 'Pendent'? %s",row[5])
             try:
                 user = AuthUser.get(AuthUser.email == row[5])
-                log0.debug("user 'pendent' ja afegit")
+                log0.debug("user 'pendent' ja afegit: %s", row[5])
             except DoesNotExist:
-                log0.debug("user 'pendent' a crear")
+                log0.debug("user 'pendent' a crear: %s", row[5])
                 file0_NewUser(row)
 
                 
@@ -618,7 +669,12 @@ def ZeroFile(filename):
                 originalrow = list(row)
                 log0.info('row: %d', contador)
                 file0_cleanRowProcess(row)
-                file0_ProcessRow(row)
+                if row[3] or row[2] != "Baixa":
+                    file0_ProcessRow(row)
+                else:
+                    log0.warning("No coopnumber i està de baixa: %s",
+                        row[5])
+                    log0.warning("%s - %s", row[3], row[2])
                 contador += 1
         except csv.Error as e:
             sys.exit('file %s, line %d: %s' % (filename, reader.line_num, e))

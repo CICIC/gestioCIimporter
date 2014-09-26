@@ -15,21 +15,6 @@ class BaseModel(Model):
         database = database
 
 
-class GeneralHuman(BaseModel):
-    birth_date = DateField(null=True)
-    death_date = DateField(null=True)
-    description = TextField(null=True)
-    email = CharField(max_length=100)
-    name = CharField(max_length=200)
-    nickname = CharField(max_length=50)
-    telephone_cell = CharField(max_length=20)
-    telephone_land = CharField(max_length=20)
-    website = CharField(max_length=100)
-
-    class Meta:
-        db_table = 'General_human'
-
-
 class GeneralType(BaseModel):
     clas = CharField(max_length=200)
     description = TextField()
@@ -44,59 +29,12 @@ class GeneralType(BaseModel):
         db_table = 'General_type'
 
 
-class GeneralBeingType(BaseModel):
-    typ = ForeignKeyField(
-        db_column='typ_id', primary_key=True, rel_model=GeneralType)
-
-    class Meta:
-        db_table = 'General_being_type'
-
-
-class GeneralCompanyType(BaseModel):
-    being_type = ForeignKeyField(
-        db_column='being_type_id', primary_key=True, rel_model=GeneralBeingType)
-
-    class Meta:
-        db_table = 'General_company_type'
-
-
-class GeneralCompany(BaseModel):
-    company_type = ForeignKeyField(
-        db_column='company_type_id', null=True, rel_model=GeneralCompanyType)
-    human = ForeignKeyField(
-        db_column='human_id', primary_key=True, rel_model=GeneralHuman)
-    legal_name = CharField(max_length=200, null=True)
-    vat_number = CharField(max_length=20, null=True)
-
-    class Meta:
-        db_table = 'General_company'
-
-
 class GeneralArtworkType(BaseModel):
     typ = ForeignKeyField(
         db_column='typ_id', primary_key=True, rel_model=GeneralType)
 
     class Meta:
         db_table = 'General_artwork_type'
-
-
-class GeneralRecordType(BaseModel):
-    artwork_type = ForeignKeyField(
-        db_column='artwork_type_id', primary_key=True,
-        rel_model=GeneralArtworkType)
-
-    class Meta:
-        db_table = 'General_record_type'
-
-
-class GeneralRecord(BaseModel):
-    description = TextField(null=True)
-    name = CharField(max_length=200, null=True)
-    record_type = ForeignKeyField(
-        db_column='record_type_id', null=True, rel_model=GeneralRecordType)
-
-    class Meta:
-        db_table = 'General_record'
 
 
 class GeneralUnitType(BaseModel):
@@ -106,6 +44,21 @@ class GeneralUnitType(BaseModel):
 
     class Meta:
         db_table = 'General_unit_type'
+
+
+class GeneralHuman(BaseModel):
+    birth_date = DateField(null=True)
+    death_date = DateField(null=True)
+    description = TextField(null=True)
+    email = CharField(max_length=100)
+    name = CharField(max_length=200)
+    nickname = CharField(max_length=50)
+    telephone_cell = CharField(max_length=20)
+    telephone_land = CharField(max_length=20)
+    website = CharField(max_length=100)
+
+    class Meta:
+        db_table = 'General_human'
 
 
 class GeneralSpaceType(BaseModel):
@@ -152,6 +105,53 @@ class GeneralUnit(BaseModel):
 
     class Meta:
         db_table = 'General_unit'
+
+
+class GeneralRecordType(BaseModel):
+    artwork_type = ForeignKeyField(
+        db_column='artwork_type_id', primary_key=True,
+        rel_model=GeneralArtworkType)
+
+    class Meta:
+        db_table = 'General_record_type'
+
+
+class GeneralRecord(BaseModel):
+    description = TextField(null=True)
+    name = CharField(max_length=200, null=True)
+    record_type = ForeignKeyField(
+        db_column='record_type_id', null=True, rel_model=GeneralRecordType)
+
+    class Meta:
+        db_table = 'General_record'
+
+
+class GeneralBeingType(BaseModel):
+    typ = ForeignKeyField(
+        db_column='typ_id', primary_key=True, rel_model=GeneralType)
+
+    class Meta:
+        db_table = 'General_being_type'
+
+
+class GeneralCompanyType(BaseModel):
+    being_type = ForeignKeyField(
+        db_column='being_type_id', primary_key=True, rel_model=GeneralBeingType)
+
+    class Meta:
+        db_table = 'General_company_type'
+
+
+class GeneralCompany(BaseModel):
+    company_type = ForeignKeyField(
+        db_column='company_type_id', null=True, rel_model=GeneralCompanyType)
+    human = ForeignKeyField(
+        db_column='human_id', primary_key=True, rel_model=GeneralHuman)
+    legal_name = CharField(max_length=200, null=True)
+    vat_number = CharField(max_length=20, null=True)
+
+    class Meta:
+        db_table = 'General_company'
 
 
 class GeneralAccountbank(BaseModel):
@@ -248,6 +248,54 @@ class GeneralRelHumanPersons(BaseModel):
         db_table = 'General_rel_human_persons'
 
 
+class InvoicesSalesMovement(BaseModel):
+    concept = CharField(max_length=200)
+    cooper = IntegerField(db_column='cooper_id')
+    currency = IntegerField(db_column='currency_id')
+    execution_date = DateField(null=True)
+    planned_date = DateField()
+    value = DecimalField()
+    who_manage = IntegerField()
+
+    class Meta:
+        db_table = 'Invoices_sales_movement'
+
+
+class InvoicesCoop(BaseModel):
+    name = CharField(max_length=200)
+
+    class Meta:
+        db_table = 'Invoices_coop'
+
+
+class OldAuthUser(BaseModel):
+    date_joined = DateTimeField()
+    email = CharField(max_length=75)
+    first_name = CharField(max_length=30)
+    is_active = IntegerField()
+    is_staff = IntegerField()
+    is_superuser = IntegerField()
+    last_login = DateTimeField()
+    last_name = CharField(max_length=30)
+    password = CharField(max_length=128)
+    username = CharField(max_length=30)
+
+    class Meta:
+        db_table = 'old_auth_user'
+
+
+class InvoicesSoci(BaseModel):
+    iva_assignat = IntegerField(db_column='IVA_assignat')
+    coop = ForeignKeyField(db_column='coop_id', rel_model=InvoicesCoop)
+    coop_number = IntegerField()
+    extra_days = IntegerField()
+    pretax = DecimalField(db_column='preTAX')
+    user = ForeignKeyField(db_column='user_id', rel_model=OldAuthUser)
+
+    class Meta:
+        db_table = 'Invoices_soci'
+
+
 class WelcomeIcType(BaseModel):
     clas = CharField(max_length=200)
     description = TextField()
@@ -270,6 +318,15 @@ class WelcomeIcRecordType(BaseModel):
         db_table = 'Welcome_ic_record_type'
 
 
+class WelcomeIcDocumentType(BaseModel):
+    record_type = ForeignKeyField(
+        db_column='record_type_id', primary_key=True,
+        rel_model=WelcomeIcRecordType)
+
+    class Meta:
+        db_table = 'Welcome_ic_document_type'
+
+
 class WelcomeIcRecord(BaseModel):
     description = TextField(null=True)
     name = CharField(max_length=200, null=True)
@@ -278,6 +335,69 @@ class WelcomeIcRecord(BaseModel):
 
     class Meta:
         db_table = 'Welcome_ic_record'
+
+
+class WelcomeIcDocument(BaseModel):
+    doc_file = CharField(max_length=100, null=True)
+    doc_type = ForeignKeyField(
+        db_column='doc_type_id', null=True, rel_model=WelcomeIcDocumentType)
+    ic_record = ForeignKeyField(
+        db_column='ic_record_id', primary_key=True, rel_model=WelcomeIcRecord)
+
+    class Meta:
+        db_table = 'Welcome_ic_document'
+
+
+class GeneralJob(BaseModel):
+    clas = CharField(max_length=50)
+    description = TextField()
+    gerund = CharField(max_length=200)
+    level = IntegerField()
+    lft = IntegerField()
+    name = CharField(max_length=200)
+    parent = ForeignKeyField(db_column='parent_id', null=True, rel_model='self')
+    rght = IntegerField()
+    tree = IntegerField(db_column='tree_id')
+    verb = CharField(max_length=200)
+
+    class Meta:
+        db_table = 'General_job'
+
+
+class WelcomeIcInsurance(BaseModel):
+    company = ForeignKeyField(
+        db_column='company_id', null=True, rel_model=GeneralCompany)
+    end_date = DateField(null=True)
+    ic_document = ForeignKeyField(
+        db_column='ic_document_id', primary_key=True,
+        rel_model=WelcomeIcDocument)
+    number = CharField(max_length=30, null=True)
+    payed_date = DateField(null=True)
+    price = DecimalField(null=True)
+    price_unit = ForeignKeyField(
+        db_column='price_unit_id', null=True, rel_model=GeneralUnit)
+    rel_address = ForeignKeyField(
+        db_column='rel_address_id', null=True, rel_model=GeneralAddress)
+    rel_job = ForeignKeyField(
+        db_column='rel_job_id', null=True, rel_model=GeneralJob)
+    start_date = DateField(null=True)
+
+    class Meta:
+        db_table = 'Welcome_ic_insurance'
+
+
+class WelcomeIcLaborContract(BaseModel):
+    company = ForeignKeyField(
+        db_column='company_id', null=True, rel_model=GeneralCompany)
+    end_date = DateField(null=True)
+    ic_document = ForeignKeyField(
+        db_column='ic_document_id', primary_key=True,
+        rel_model=WelcomeIcDocument)
+    person = ForeignKeyField(db_column='person_id', rel_model=GeneralPerson)
+    start_date = DateField(null=True)
+
+    class Meta:
+        db_table = 'Welcome_ic_labor_contract'
 
 
 class WelcomePaymentType(BaseModel):
@@ -333,145 +453,6 @@ class WelcomeFee(BaseModel):
         db_table = 'Welcome_fee'
 
 
-class WelcomeIcMembership(BaseModel):
-    contribution = ForeignKeyField(
-        db_column='contribution_id', null=True, rel_model=GeneralRelation)
-    end_date = DateField(null=True)
-    human = ForeignKeyField(db_column='human_id', rel_model=GeneralHuman)
-    ic_cesnum = CharField(db_column='ic_CESnum', max_length=8, null=True)
-    ic_company = ForeignKeyField(
-        db_column='ic_company_id', null=True, rel_model=GeneralCompany)
-    ic_project = ForeignKeyField(
-        db_column='ic_project_id', rel_model=GeneralProject)
-    ic_record = ForeignKeyField(
-        db_column='ic_record_id', primary_key=True, rel_model=WelcomeIcRecord)
-    join_date = DateField(null=True)
-    join_fee = ForeignKeyField(
-        db_column='join_fee_id', null=True, rel_model=WelcomeFee)
-    virtual_market = IntegerField()
-
-    class Meta:
-        db_table = 'Welcome_ic_membership'
-
-
-class InvoicesSalesMovement(BaseModel):
-    concept = CharField(max_length=200)
-    currency = IntegerField(null=True)
-    execution_date = DateField(null=True)
-    ic_membership = ForeignKeyField(
-        db_column='ic_membership_id', rel_model=WelcomeIcMembership)
-    planned_date = DateField()
-    value = DecimalField()
-    who_manage = IntegerField()
-
-    class Meta:
-        db_table = 'Invoices_sales_movement'
-
-
-class InvoicesCoop(BaseModel):
-    name = CharField(max_length=200)
-
-    class Meta:
-        db_table = 'Invoices_coop'
-
-
-class OldAuthUser(BaseModel):
-    date_joined = DateTimeField()
-    email = CharField(max_length=75)
-    first_name = CharField(max_length=30)
-    is_active = IntegerField()
-    is_staff = IntegerField()
-    is_superuser = IntegerField()
-    last_login = DateTimeField()
-    last_name = CharField(max_length=30)
-    password = CharField(max_length=128)
-    username = CharField(max_length=30)
-
-    class Meta:
-        db_table = 'old_auth_user'
-
-
-class InvoicesSoci(BaseModel):
-    iva_assignat = IntegerField(db_column='IVA_assignat')
-    coop = ForeignKeyField(db_column='coop_id', rel_model=InvoicesCoop)
-    coop_number = IntegerField()
-    extra_days = IntegerField()
-    pretax = DecimalField(db_column='preTAX')
-    user = ForeignKeyField(db_column='user_id', rel_model=OldAuthUser)
-
-    class Meta:
-        db_table = 'Invoices_soci'
-
-
-class WelcomeIcDocumentType(BaseModel):
-    record_type = ForeignKeyField(
-        db_column='record_type_id', primary_key=True,
-        rel_model=WelcomeIcRecordType)
-
-    class Meta:
-        db_table = 'Welcome_ic_document_type'
-
-
-class WelcomeIcDocument(BaseModel):
-    doc_file = CharField(max_length=100, null=True)
-    doc_type = ForeignKeyField(
-        db_column='doc_type_id', null=True, rel_model=WelcomeIcDocumentType)
-    ic_record = ForeignKeyField(
-        db_column='ic_record_id', primary_key=True, rel_model=WelcomeIcRecord)
-
-    class Meta:
-        db_table = 'Welcome_ic_document'
-
-
-class GeneralJob(BaseModel):
-    clas = CharField(max_length=50)
-    description = TextField()
-    gerund = CharField(max_length=200)
-    level = IntegerField()
-    lft = IntegerField()
-    name = CharField(max_length=200)
-    parent = ForeignKeyField(db_column='parent_id', null=True, rel_model='self')
-    rght = IntegerField()
-    tree = IntegerField(db_column='tree_id')
-    verb = CharField(max_length=200)
-
-    class Meta:
-        db_table = 'General_job'
-
-
-class WelcomeIcInsurance(BaseModel):
-    company = ForeignKeyField(db_column='company_id', rel_model=GeneralCompany)
-    end_date = DateField(null=True)
-    ic_document = ForeignKeyField(
-        db_column='ic_document_id', primary_key=True,
-        rel_model=WelcomeIcDocument)
-    number = CharField(max_length=30, null=True)
-    price = DecimalField(null=True)
-    price_unit = ForeignKeyField(
-        db_column='price_unit_id', null=True, rel_model=GeneralUnit)
-    rel_address = ForeignKeyField(
-        db_column='rel_address_id', null=True, rel_model=GeneralAddress)
-    rel_job = ForeignKeyField(
-        db_column='rel_job_id', null=True, rel_model=GeneralJob)
-    start_date = DateField(null=True)
-
-    class Meta:
-        db_table = 'Welcome_ic_insurance'
-
-
-class WelcomeIcLaborContract(BaseModel):
-    company = ForeignKeyField(db_column='company_id', rel_model=GeneralCompany)
-    end_date = DateField(null=True)
-    ic_document = ForeignKeyField(
-        db_column='ic_document_id', primary_key=True,
-        rel_model=WelcomeIcDocument)
-    person = ForeignKeyField(db_column='person_id', rel_model=GeneralPerson)
-    start_date = DateField(null=True)
-
-    class Meta:
-        db_table = 'Welcome_ic_labor_contract'
-
-
 class WelcomeIcLaborContractRelFees(BaseModel):
     fee = ForeignKeyField(db_column='fee_id', rel_model=WelcomeFee)
     ic_labor_contract = ForeignKeyField(
@@ -495,6 +476,27 @@ class WelcomeIcLicence(BaseModel):
 
     class Meta:
         db_table = 'Welcome_ic_licence'
+
+
+class WelcomeIcMembership(BaseModel):
+    contribution = ForeignKeyField(
+        db_column='contribution_id', null=True, rel_model=GeneralRelation)
+    end_date = DateField(null=True)
+    human = ForeignKeyField(db_column='human_id', rel_model=GeneralHuman)
+    ic_cesnum = CharField(db_column='ic_CESnum', max_length=8, null=True)
+    ic_company = ForeignKeyField(
+        db_column='ic_company_id', null=True, rel_model=GeneralCompany)
+    ic_project = ForeignKeyField(
+        db_column='ic_project_id', rel_model=GeneralProject)
+    ic_record = ForeignKeyField(
+        db_column='ic_record_id', primary_key=True, rel_model=WelcomeIcRecord)
+    join_date = DateField(null=True)
+    join_fee = ForeignKeyField(
+        db_column='join_fee_id', null=True, rel_model=WelcomeFee)
+    virtual_market = IntegerField()
+
+    class Meta:
+        db_table = 'Welcome_ic_membership'
 
 
 class WelcomeIcPersonMembership(BaseModel):
@@ -523,7 +525,7 @@ class WelcomeIcProjectMembership(BaseModel):
 class WelcomeIcSelfEmployed(BaseModel):
     assigned_vat = DecimalField(null=True)
     end_date = DateField(null=True)
-    extra_days = IntegerField()
+    extra_days = IntegerField(null=True)
     ic_membership = ForeignKeyField(
         db_column='ic_membership_id', rel_model=WelcomeIcMembership,
             related_name='own_membership') # DO NOT REMOVE ON UPDATE OR WILL CRASH!
@@ -551,6 +553,16 @@ class WelcomeIcSelfEmployedRelFees(BaseModel):
 
     class Meta:
         db_table = 'Welcome_ic_self_employed_rel_fees'
+
+
+class WelcomeIcSelfEmployedRelInsurances(BaseModel):
+    ic_insurance = ForeignKeyField(
+        db_column='ic_insurance_id', rel_model=WelcomeIcInsurance)
+    ic_self_employed = ForeignKeyField(
+        db_column='ic_self_employed_id', rel_model=WelcomeIcSelfEmployed)
+
+    class Meta:
+        db_table = 'Welcome_ic_self_employed_rel_insurances'
 
 
 class WelcomeIcStallholder(BaseModel):
@@ -584,7 +596,8 @@ class PublicFormRegistrationprofile(BaseModel):
     person = ForeignKeyField(db_column='person_id', rel_model=GeneralPerson)
     project = ForeignKeyField(
         db_column='project_id', null=True, rel_model=GeneralProject)
-    record_type = IntegerField(db_column='record_type_id')
+    record_type = ForeignKeyField(
+        db_column='record_type_id', rel_model=WelcomeIcRecordType)
     user = ForeignKeyField(db_column='user_id', rel_model=AuthUser)
 
     class Meta:
