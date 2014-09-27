@@ -16,7 +16,7 @@ from models import PublicFormRegistrationprofile, GeneralRecord, GeneralType
 from models import GeneralAccountbank, WelcomeIcType, GeneralUnit
 from models import GeneralRelation, WelcomeFee, WelcomeIcSelfEmployedRelFees
 from models import WelcomeIcStallholder, InvoicesSalesMovement, GeneralCompany
-from models import WelcomeIcDocument,WelcomeIcInsurance
+from models import WelcomeIcDocument,WelcomeIcInsurance, GeneralRegion
 from models import WelcomeIcSelfEmployedRelInsurances
 
 
@@ -291,10 +291,17 @@ def file0_CreateHuman(row, user):
 
 def file0_CreateAddress(row, humanID):
     "Process the CSV data related to Address class and saves to the database"
-
+    
+    # try to match a 'comarca' in the database
+    comarca = None
+    if row[10]:
+        try:
+            comarca = GeneralRegion.get(name=row[10])
+        except DoesNotExist:
+            pass
     # create address
     address = GeneralAddress.create(name='Adreça principal', p_address=row[7],
-        ic_larder=0, postalcode=row[8], town=row[9])
+        ic_larder=0, postalcode=row[8], town=row[9], region=comarca)
     # create relation between person and address
     GeneralRelHumanAddresses.create(
         address=address.id, human=humanID, main_address=1)
