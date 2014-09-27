@@ -250,9 +250,9 @@ class GeneralRelHumanPersons(BaseModel):
 
 class InvoicesSalesMovement(BaseModel):
     concept = CharField(max_length=200)
-    cooper = IntegerField(db_column='cooper_id')
     currency = IntegerField(db_column='currency_id')
     execution_date = DateField(null=True)
+    ic_membership = IntegerField()
     planned_date = DateField()
     value = DecimalField()
     who_manage = IntegerField()

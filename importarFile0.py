@@ -112,6 +112,17 @@ def loadWelcomeTypeName(name):
         exit()
 
 
+def loadGeneralCompanyName(name):
+    "Load Company row"
+
+    try:
+        uid = GeneralCompany.get(legal_name=name)
+        return uid.human
+    except DoesNotExist:
+        log0.error("The database is not properly populated with %s", name)
+        exit()
+
+
 # membership type
 SociCoopInd = loadWelcomeType("iC_Person_Membership")
 SociCoopCol = loadWelcomeType("iC_Project_Membership")
@@ -132,25 +143,28 @@ ecoxarxa_type = loadGeneralTypeName("Ecoxarxa")
 # relation type
 rel_persRef = loadGeneralRelation("reference")
 
-#bank account record type
+# bank account record type
 recBankAccount = loadGeneralType("AccountBank")
 
-#unit
+# unit
 unitEUR = loadGeneralUnitName("Euro")
 unitECO = loadGeneralUnitName("EcoCoop")
 unitHora = loadGeneralUnitName("Hora")
 
-#paymentType
+# paymentType
 paymentFlow = loadWelcomeTypeName("pagament en Metàl·lic")
 
-#Fees
-advancedFee = loadWelcomeType("advanced_fee")
+# Fees
+advancedFee = loadWelcomeType("(45_eco) advanced_fee")
 
-#insurance record type
+# insurance record type
 typeInsurance = loadWelcomeType("iC_Insurance")
 typeInsuranceCompany = loadGeneralTypeName('Asseguradora')
 
-#try to keep the original row each loop
+# get bank company
+bankCompany = loadGeneralCompanyName('Triodos')
+
+# try to keep the original row each loop
 originalrow = []
 ############################################
 ## Zerofile: UsersOld database and Transv ##
@@ -350,12 +364,11 @@ def file0_addFeeMovements(row, selfemployed):
     
     trimestre = ['1r','2n','3r','4t']
     pointer = [141,156,171,186]
-    member = selfemployed.ic_record
     # who manage de sale movement
     manage_gestioEco = 1 # ECOs managed by gestioEco
     manage_members = 0 #EURs managed by members
+    i = 0
     for quarter in trimestre:
-        i = 0
         concept = "Quota " + quarter + " trimestre. " + row[pointer[i]+6]
         execution_date = row[pointer[i]+5]
         valueEUR = row[pointer[i]]
@@ -376,18 +389,48 @@ def file0_addFeeMovements(row, selfemployed):
                 InvoicesSalesMovement.create(
                     ic_membership=selfemployed.ic_membership.ic_record.id,
                     concept=concept, execution_date=execution_date,
-                    value=valueEUR, currency=unitECO.id, planned_date=execution_date,
-                    who_manage=manage_gestioEco)
+                    value=valueEUR, currency=unitECO.id,
+                    planned_date=execution_date, who_manage=manage_gestioEco)
             else:
                 log0.warning("Falta data de pagament de:")
                 log0.warning("%s: %s\n%s - ECO:%s", row[3], concept,
                     execution_date, valueECO)
+        i += 1
 
 
 def file0_addTaxMovements(row, selfemployed):
     "function to store the tax movements"
-
-    return None
+    
+    trimestre = ['1r','2n','3r','4t']
+    pointer = [78,92,106,120]
+    # who manage de sale movement
+    manage_gestioEco = 1 # ECOs managed by gestioEco
+    manage_members = 0 #EURs managed by members
+    i = 0
+    for quarter in trimestre:
+        concept = "IVA+Donació " + quarter + " trimestre. " + row[pointer[i]+5] + ". " + row[pointer[i]+7]
+        concept2 = "IRPF " + quarter + " trimestre. " + row[pointer[i]+5] + ". " + row[pointer[i]+7]
+        execution_date = row[pointer[i]+6]
+        valueVAT = row[pointer[i]]
+        valueIRPF = row[pointer[i]+1]
+        if valueVAT or valueIRPF:
+            if execution_date != None and execution_date != '':
+                InvoicesSalesMovement.create(
+                    ic_membership=selfemployed.ic_membership.ic_record.id,
+                    concept=concept, execution_date=execution_date, value=valueVAT,
+                    currency=unitEUR.id, planned_date=execution_date,
+                    who_manage=manage_gestioEco)
+                if valueIRPF:
+                    InvoicesSalesMovement.create(
+                        ic_membership=selfemployed.ic_membership.ic_record.id,
+                        concept=concept2, execution_date=execution_date,
+                        value=valueIRPF, currency=unitEUR.id,
+                        planned_date=execution_date, who_manage=manage_gestioEco)
+            else:
+                log0.warning("Falta data de pagament de:")
+                log0.warning("%s: \n%s - VAT:%s", row[3], concept, valueVAT)
+                log0.warning("%s: \n%s - IRPF:%s", row[3], concept2, valueIRPF)
+        i += 1
 
 
 def file0_ImportInsurance(row, selfe):
@@ -473,7 +516,8 @@ def file0_CreateSelfEmployed(row, membership):
             if row[26] == 'Sí':
                 tarjeta=1
             bankAccount = GeneralAccountbank.create(record=recBank,
-                human=membership.human.id, unit=unitEUR, bankcard=tarjeta)
+                company=bankCompany, human=membership.human.id,
+                unit=unitEUR, bankcard=tarjeta)
         # has end date: status baixa
         # TODO: waiting status to do something more
         comment = 'Comentaris Històric\n'
@@ -484,7 +528,7 @@ def file0_CreateSelfEmployed(row, membership):
         comment += row[18] + '\n'
         selfe = WelcomeIcSelfEmployed.create(ic_record=record.id,
             ic_membership=membership.ic_record.id, join_date=row[0],
-            end_date=row[0], organic=0, rel_accountBank=bankAccount,
+            end_date=row[1], organic=0, rel_accountBank=bankAccount,
             assigned_vat=IVAassignat, mentor_comment=row[18], extra_days=extraD)
         if file0_isStallholder(row):
             WelcomeIcStallholder.create(
@@ -496,7 +540,7 @@ def file0_CreateSelfEmployed(row, membership):
         # Quotes Trim
         file0_addFeeMovements(row, selfe)
         # TODO: IVAS Trim
-        #file0_addTaxMovements(row,selfe)
+        file0_addTaxMovements(row,selfe)
         # TODO: waiting IAEs table
         # Assegurances
         if row[21] != '':
