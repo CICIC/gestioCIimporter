@@ -1,24 +1,11 @@
 #  coding: utf8
-import csv
-import sys
-import re
 import logging
-import pdb
+import csv
 
 from peewee import DoesNotExist, IntegrityError
 from cleanCSVdata import *
-from models import WelcomeIcMembership, WelcomeIcRecord
-from models import WelcomeIcPersonMembership, WelcomeIcProjectMembership
-from models import GeneralHuman, GeneralPerson, GeneralRelHumanAddresses
-from models import GeneralAddress, GeneralProject, OldAuthUser, AuthUser
-from models import InvoicesSoci, GeneralRelHumanPersons, WelcomeIcSelfEmployed
-from models import PublicFormRegistrationprofile, GeneralRecord, GeneralType
-from models import GeneralAccountbank, WelcomeIcType, GeneralUnit
-from models import GeneralRelation, WelcomeFee, WelcomeIcSelfEmployedRelFees
-from models import WelcomeIcStallholder, InvoicesSalesMovement, GeneralCompany
-from models import WelcomeIcDocument,WelcomeIcInsurance, GeneralRegion
-from models import WelcomeIcSelfEmployedRelInsurances
-
+from models import *
+from globalVars import *
 
 ###################
 ## logger config ##
@@ -43,129 +30,6 @@ log0.addHandler(fh0)
 log0.addHandler(ch0)
 
 
-######################
-## Load Global vars ##
-######################
-def loadGeneralUnitName(name):
-    "Load generalUnit values"
-
-    try:
-        uid = GeneralUnit.get(name=name)
-        return uid
-    except DoesNotExist:
-        log0.error("The database is not properly populated with %s", name)
-        exit()
-
-
-def loadGeneralType(clas):
-    "Load GeneralTypes values"
-
-    try:
-        uid = GeneralType.get(clas=clas)
-        return uid.id
-    except DoesNotExist:
-        log0.error("Database not properly populated with %s", clas)
-        exit()
-
-
-def loadGeneralTypeName(name):
-    "Load GeneralTypes values"
-
-    try:
-        uid = GeneralType.get(name=name)
-        return uid.id
-    except DoesNotExist:
-        log0.error("Database not properly populated with %s", name)
-        exit()
-
-
-def loadGeneralRelation(clas):
-    "Load GeneralRelation values"
-
-    try:
-        uid = GeneralRelation.get(clas=clas)
-        return uid.id
-    except DoesNotExist:
-        log0.error("Database not properly populated with %s", clas)
-        exit()
-
-
-def loadWelcomeType(clas):
-    "Load WelcomeTypes values"
-    
-    try:
-        uid = WelcomeIcType.get(clas=clas)
-        return uid.id
-    except DoesNotExist:
-        log0.error("Database not properly populated with %s", clas)
-        exit()
-
-
-def loadWelcomeTypeName(name):
-    "Load WelcomeTypes values"
-    
-    try:
-        uid = WelcomeIcType.get(name=name)
-        return uid.id
-    except DoesNotExist:
-        log0.error("Database not properly populated with %s", name)
-        exit()
-
-
-def loadGeneralCompanyName(name):
-    "Load Company row"
-
-    try:
-        uid = GeneralCompany.get(legal_name=name)
-        return uid.human
-    except DoesNotExist:
-        log0.error("The database is not properly populated with %s", name)
-        exit()
-
-
-# membership type
-SociCoopInd = loadWelcomeType("iC_Person_Membership")
-SociCoopCol = loadWelcomeType("iC_Project_Membership")
-ProjPublic = loadWelcomeTypeName("alta Proj. Públic")
-SociAutoOcupat = loadWelcomeType("iC_Self_Employed")
-SociFiraire = loadWelcomeType("iC_Stallholder")
-
-# cooperative companies
-typeCoopCompany = loadGeneralTypeName("Cooperativa")
-
-# project ID
-cicProjectID = 3  # projecte: CIC
-
-# project type
-collectiveProject_type = loadGeneralTypeName("Cooperatiu Col·lectiu")
-ecoxarxa_type = loadGeneralTypeName("Ecoxarxa")
-
-# relation type
-rel_persRef = loadGeneralRelation("reference")
-
-# bank account record type
-recBankAccount = loadGeneralType("AccountBank")
-
-# unit
-unitEUR = loadGeneralUnitName("Euro")
-unitECO = loadGeneralUnitName("EcoCoop")
-unitHora = loadGeneralUnitName("Hora")
-
-# paymentType
-paymentFlow = loadWelcomeTypeName("pagament en Metàl·lic")
-
-# Fees
-advancedFee = loadWelcomeType("(45_eco) advanced_fee")
-
-# insurance record type
-typeInsurance = loadWelcomeType("iC_Insurance")
-typeInsuranceCompany = loadGeneralTypeName('Asseguradora')
-
-# get bank company
-bankCompany = loadGeneralCompanyName('Triodos')
-
-# try to keep the original row each loop
-originalrow = []
 ############################################
 ## Zerofile: UsersOld database and Transv ##
 ############################################
@@ -260,8 +124,8 @@ def file0_CreateUser(row):
         last_name = row[12]
         email = row[5]
     if not username and email:
-        log0.warning("Sense COOP, creant usuari amb l'email")
-        username = row[5]
+        log0.warning("Sense COOP, creant usuari amb el correu-e")
+        username = row[5].split('@')[0]
     if username:
         newuser = AuthUser.create(date_joined = date_joined, email = email,
             first_name = first_name, is_active = is_active,
@@ -325,7 +189,7 @@ def file0_CreateProject(row, user):
         human.save()
     projType = collectiveProject_type
     if row[14] == "Ecoxarxa":
-        projType = ecoxarxa_type
+        projType = ecoxarxaProject_type
     GeneralProject.create(human=human.id, project_type=projType,
         parent=cicProjectID, description=row[201])
     return human
@@ -546,7 +410,7 @@ def file0_CreateSelfEmployed(row, membership):
             ic_self_employed=selfe.ic_record, fee=fee.ic_record)
         # Quotes Trim
         file0_addFeeMovements(row, selfe)
-        # TODO: IVAS Trim
+        # IVAS Trim
         file0_addTaxMovements(row,selfe)
         # TODO: waiting IAEs table
         # Assegurances
@@ -554,8 +418,6 @@ def file0_CreateSelfEmployed(row, membership):
             file0_ImportInsurance(row, selfe)
         elif row[19] or row[22]:
             log0.warning("revisar assegurança al transversal: %s", row[3])
-        # TODO: Contractes (lloguer...)
-        # TODO: Contracte laboral
 
     except DoesNotExist:
         log0.debug("no existeix soci")
@@ -655,9 +517,9 @@ def file0_CreateMembership(row, user):
         # values to return
         beingID = refPers.id, human.id
     else:
-        log0.warning('Projecte %s, email:%s, Tipus desconegut (Ind/Col...): %s',
-            row[3], row[5], row[14].decode('ascii', 'ignore'))
-        log0.warning("name: %s surnames: %s", row[11], row[12])
+        if row[2] != "Baixa":
+            log0.warning('No hi ha tipus de soci (Ind,Col)')
+            log0.warning('Projecte %s, email:%s', row[3], row[5])
     return beingID, recType
     
 
@@ -682,7 +544,7 @@ def file0_ProcessRow(row):
         #soci has coop
         try:
             user = AuthUser.get(AuthUser.username == row[3])
-            # TODO: aquí es podria updatejar l'usuari!!
+            # aquí es podria updatejar l'usuari!!
             log0.debug("actualitzar usuari")
         except DoesNotExist:
             if row[5]:
@@ -691,7 +553,7 @@ def file0_ProcessRow(row):
                     if user.username != row[5]:
                         file0_NewUser(row)
                     else:
-                        # TODO: actualitzar usuari
+                        # actualitzar usuari
                         log0.debug("actualitzar usuari")
                 except DoesNotExist:
                     file0_NewUser(row)
@@ -703,9 +565,9 @@ def file0_ProcessRow(row):
             log0.warning("És un 'Pendent'? %s",row[5])
             try:
                 user = AuthUser.get(AuthUser.email == row[5])
-                log0.debug("user 'pendent' ja afegit: %s", row[5])
+                log0.warning("user 'pendent' ja afegit: %s", row[5])
             except DoesNotExist:
-                log0.debug("user 'pendent' a crear: %s", row[5])
+                log0.warning("user 'pendent' a crear: %s", row[5])
                 file0_NewUser(row)
 
                 
@@ -717,15 +579,12 @@ def ZeroFile(filename):
         try:
             contador = 1
             for row in reader:
-                originalrow = list(row)
                 log0.info('row: %d', contador)
                 file0_cleanRowProcess(row)
                 if row[3] or row[2] != "Baixa":
                     file0_ProcessRow(row)
                 else:
-                    log0.warning("No coopnumber i està de baixa: %s",
-                        row[5])
-                    log0.warning("%s - %s", row[3], row[2])
+                    log0.info("Sense COOP i donat de baixa: %s", row[5])
                 contador += 1
         except csv.Error as e:
             sys.exit('file %s, line %d: %s' % (filename, reader.line_num, e))

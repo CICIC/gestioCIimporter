@@ -4,9 +4,9 @@ import logging
 
 
 def cleanDate(date):
-    "Clean date format from yyyy[/]mm[/]dd hh:mm:ss"
-    
-    date = date.replace(' ', '')
+    "Clean date format from yyyy[/]mm[/]dd"
+
+    date = date.split(' ')[0]
     if date != '':
         try:
             query = r'([0-9]|0[1-9]|[12][0-9]|3[01])/([0-9]|0[1-9]|1[012])/((19|20)[0-9][0-9]|1[0-9])'
@@ -21,6 +21,9 @@ def cleanDate(date):
         date = None
     return date
 
+
+def minicleanDate(date):
+    return date.split(' ')[0]
 
 def cleanPhone(phone):
     "Clean phone date, only spain numbers"

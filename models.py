@@ -15,6 +15,21 @@ class BaseModel(Model):
         database = database
 
 
+class GeneralHuman(BaseModel):
+    birth_date = DateField(null=True)
+    death_date = DateField(null=True)
+    description = TextField(null=True)
+    email = CharField(max_length=100)
+    name = CharField(max_length=200)
+    nickname = CharField(max_length=50)
+    telephone_cell = CharField(max_length=20)
+    telephone_land = CharField(max_length=20)
+    website = CharField(max_length=100)
+
+    class Meta:
+        db_table = 'General_human'
+
+
 class GeneralType(BaseModel):
     clas = CharField(max_length=200)
     description = TextField()
@@ -29,12 +44,59 @@ class GeneralType(BaseModel):
         db_table = 'General_type'
 
 
+class GeneralBeingType(BaseModel):
+    typ = ForeignKeyField(
+        db_column='typ_id', primary_key=True, rel_model=GeneralType)
+
+    class Meta:
+        db_table = 'General_being_type'
+
+
+class GeneralCompanyType(BaseModel):
+    being_type = ForeignKeyField(
+        db_column='being_type_id', primary_key=True, rel_model=GeneralBeingType)
+
+    class Meta:
+        db_table = 'General_company_type'
+
+
+class GeneralCompany(BaseModel):
+    company_type = ForeignKeyField(
+        db_column='company_type_id', null=True, rel_model=GeneralCompanyType)
+    human = ForeignKeyField(
+        db_column='human_id', primary_key=True, rel_model=GeneralHuman)
+    legal_name = CharField(max_length=200, null=True)
+    vat_number = CharField(max_length=20, null=True)
+
+    class Meta:
+        db_table = 'General_company'
+
+
 class GeneralArtworkType(BaseModel):
     typ = ForeignKeyField(
         db_column='typ_id', primary_key=True, rel_model=GeneralType)
 
     class Meta:
         db_table = 'General_artwork_type'
+
+
+class GeneralRecordType(BaseModel):
+    artwork_type = ForeignKeyField(
+        db_column='artwork_type_id', primary_key=True,
+        rel_model=GeneralArtworkType)
+
+    class Meta:
+        db_table = 'General_record_type'
+
+
+class GeneralRecord(BaseModel):
+    description = TextField(null=True)
+    name = CharField(max_length=200, null=True)
+    record_type = ForeignKeyField(
+        db_column='record_type_id', null=True, rel_model=GeneralRecordType)
+
+    class Meta:
+        db_table = 'General_record'
 
 
 class GeneralUnitType(BaseModel):
@@ -44,21 +106,6 @@ class GeneralUnitType(BaseModel):
 
     class Meta:
         db_table = 'General_unit_type'
-
-
-class GeneralHuman(BaseModel):
-    birth_date = DateField(null=True)
-    death_date = DateField(null=True)
-    description = TextField(null=True)
-    email = CharField(max_length=100)
-    name = CharField(max_length=200)
-    nickname = CharField(max_length=50)
-    telephone_cell = CharField(max_length=20)
-    telephone_land = CharField(max_length=20)
-    website = CharField(max_length=100)
-
-    class Meta:
-        db_table = 'General_human'
 
 
 class GeneralSpaceType(BaseModel):
@@ -105,53 +152,6 @@ class GeneralUnit(BaseModel):
 
     class Meta:
         db_table = 'General_unit'
-
-
-class GeneralRecordType(BaseModel):
-    artwork_type = ForeignKeyField(
-        db_column='artwork_type_id', primary_key=True,
-        rel_model=GeneralArtworkType)
-
-    class Meta:
-        db_table = 'General_record_type'
-
-
-class GeneralRecord(BaseModel):
-    description = TextField(null=True)
-    name = CharField(max_length=200, null=True)
-    record_type = ForeignKeyField(
-        db_column='record_type_id', null=True, rel_model=GeneralRecordType)
-
-    class Meta:
-        db_table = 'General_record'
-
-
-class GeneralBeingType(BaseModel):
-    typ = ForeignKeyField(
-        db_column='typ_id', primary_key=True, rel_model=GeneralType)
-
-    class Meta:
-        db_table = 'General_being_type'
-
-
-class GeneralCompanyType(BaseModel):
-    being_type = ForeignKeyField(
-        db_column='being_type_id', primary_key=True, rel_model=GeneralBeingType)
-
-    class Meta:
-        db_table = 'General_company_type'
-
-
-class GeneralCompany(BaseModel):
-    company_type = ForeignKeyField(
-        db_column='company_type_id', null=True, rel_model=GeneralCompanyType)
-    human = ForeignKeyField(
-        db_column='human_id', primary_key=True, rel_model=GeneralHuman)
-    legal_name = CharField(max_length=200, null=True)
-    vat_number = CharField(max_length=20, null=True)
-
-    class Meta:
-        db_table = 'General_company'
 
 
 class GeneralAccountbank(BaseModel):
